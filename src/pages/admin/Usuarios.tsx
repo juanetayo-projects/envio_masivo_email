@@ -14,6 +14,11 @@ export default function Usuarios() {
   const [msg, setMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [procesando, setProcesando] = useState(false)
+  // Modal de cambio de contraseña
+  const [resetUser, setResetUser] = useState<Perfil | null>(null)
+  const [pass1, setPass1] = useState('')
+  const [pass2, setPass2] = useState('')
+  const [verPass, setVerPass] = useState(false)
 
   async function cargar() {
     setCargando(true)
@@ -43,11 +48,19 @@ export default function Usuarios() {
     }
   }
 
-  async function reset(u: Perfil) {
-    const nueva = prompt(`Nueva contraseña para ${u.email}:`)
-    if (!nueva) return
-    if (await invocar({ accion: 'reset', id: u.id, password: nueva }))
-      setMsg(`Contraseña actualizada para ${u.email}.`)
+  function abrirReset(u: Perfil) {
+    setResetUser(u); setPass1(''); setPass2(''); setVerPass(false); setError(null)
+  }
+
+  async function confirmarReset(e: React.FormEvent) {
+    e.preventDefault()
+    if (!resetUser) return
+    if (pass1.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
+    if (pass1 !== pass2) { setError('Las contraseñas no coinciden.'); return }
+    if (await invocar({ accion: 'reset', id: resetUser.id, password: pass1 })) {
+      setMsg(`Contraseña actualizada para ${resetUser.email}.`)
+      setResetUser(null)
+    }
   }
 
   async function toggleActivo(u: Perfil) {
@@ -101,7 +114,7 @@ export default function Usuarios() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => reset(u)} className="text-xs text-[#16468E] hover:underline">Reset</button>
+                    <button onClick={() => abrirReset(u)} className="text-xs text-[#16468E] hover:underline">Cambiar contraseña</button>
                     <button onClick={() => toggleActivo(u)} className="text-xs text-amber-600 hover:underline">
                       {u.activo ? 'Desactivar' : 'Activar'}
                     </button>
@@ -135,6 +148,40 @@ export default function Usuarios() {
           <div className="flex justify-end gap-2">
             <Boton type="button" variante="secundario" onClick={() => setModalCrear(false)}>Cancelar</Boton>
             <Boton type="submit" disabled={procesando}>{procesando ? 'Creando…' : 'Crear'}</Boton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal de cambio de contraseña */}
+      <Modal open={!!resetUser} onClose={() => setResetUser(null)} titulo="Cambiar contraseña">
+        <form onSubmit={confirmarReset} className="space-y-4">
+          <p className="text-sm text-slate-500">
+            Definir una nueva contraseña para <strong>{resetUser?.email}</strong>.
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Nueva contraseña</label>
+            <input type={verPass ? 'text' : 'password'} value={pass1} autoFocus
+              onChange={(e) => setPass1(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                         outline-none focus:border-[#16468E] focus:ring-1 focus:ring-[#16468E]"
+              placeholder="Mínimo 6 caracteres" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Confirmar contraseña</label>
+            <input type={verPass ? 'text' : 'password'} value={pass2}
+              onChange={(e) => setPass2(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                         outline-none focus:border-[#16468E] focus:ring-1 focus:ring-[#16468E]"
+              placeholder="Repite la contraseña" />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" checked={verPass} onChange={(e) => setVerPass(e.target.checked)} />
+            Mostrar contraseña
+          </label>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Boton type="button" variante="secundario" onClick={() => setResetUser(null)}>Cancelar</Boton>
+            <Boton type="submit" disabled={procesando}>{procesando ? 'Guardando…' : 'Guardar'}</Boton>
           </div>
         </form>
       </Modal>
