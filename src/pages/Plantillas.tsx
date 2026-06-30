@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { PageHeader, Card, Boton } from '../components/ui'
+import { fecha } from '../lib/fecha'
 
 export type Plantilla = {
   id: string
@@ -56,7 +57,7 @@ export default function Plantillas() {
               <div className="mb-3 h-28 overflow-hidden rounded border border-slate-100 bg-slate-50 p-2 text-[10px] text-slate-400"
                    dangerouslySetInnerHTML={{ __html: p.html }} />
               <p className="mb-3 text-xs text-slate-400">
-                Actualizada {new Date(p.updated_at).toLocaleDateString('es-CO')}
+                Actualizada {fecha(p.updated_at)}
               </p>
               <div className="mt-auto flex gap-2">
                 <Boton variante="secundario" onClick={() => navigate(`/plantillas/${p.id}`)}>Editar</Boton>

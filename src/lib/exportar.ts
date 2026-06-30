@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
+import { fechaHora } from './fecha'
 
 const AZUL = 'FF0D2D6B'
 
@@ -28,7 +29,7 @@ export async function exportarEnviosExcel(
     ws.addRow({
       email: e.email,
       estado: e.estado,
-      enviado_at: e.enviado_at ? new Date(e.enviado_at).toLocaleString('es-CO') : '',
+      enviado_at: e.enviado_at ? fechaHora(e.enviado_at) : '',
       error: e.error ?? '',
     })
   })

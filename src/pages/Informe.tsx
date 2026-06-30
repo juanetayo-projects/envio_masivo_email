@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { supabase } from '../lib/supabase'
 import { PageHeader, Card, MetricCard, Boton } from '../components/ui'
 import { exportarEnviosExcel } from '../lib/exportar'
+import { fechaHora } from '../lib/fecha'
 
 type Envio = {
   id: string; email: string; estado: string
@@ -124,7 +125,7 @@ export default function Informe() {
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{e.estado}</span>
                   </td>
                   <td className="px-4 py-2 text-slate-500">
-                    {e.enviado_at ? new Date(e.enviado_at).toLocaleString('es-CO') : '—'}
+                    {fechaHora(e.enviado_at)}
                   </td>
                   <td className="px-4 py-2 text-red-600">{e.error ?? ''}</td>
                 </tr>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { PageHeader, Card, Boton } from '../components/ui'
+import { fecha } from '../lib/fecha'
 
 type Campania = {
   id: string
@@ -66,7 +67,7 @@ export default function Campanias() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500">
-                    {new Date(c.enviada_at ?? c.created_at).toLocaleDateString('es-CO')}
+                    {fecha(c.enviada_at ?? c.created_at)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => navigate(`/campanias/${c.id}/informe`)}
