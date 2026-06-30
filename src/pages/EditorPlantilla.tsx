@@ -8,7 +8,7 @@ import { useAuth } from '../lib/auth'
 import { PageHeader, Boton, Card } from '../components/ui'
 import RichText from '../components/RichText'
 
-type Tipo = 'visual' | 'texto'
+type Tipo = 'visual' | 'texto' | 'html'
 
 // Variables sugeridas (las columnas reales del Excel se aplican en la campaña).
 const VARIABLES_SUGERIDAS = ['email', 'nombre']
@@ -36,8 +36,8 @@ export default function EditorPlantilla() {
       if (data) {
         setNombre(data.nombre)
         setTipo(data.tipo)
-        if (data.tipo === 'texto') setHtmlTexto(data.html)
-        else designPendiente.current = data.design_json
+        if (data.tipo === 'visual') designPendiente.current = data.design_json
+        else setHtmlTexto(data.html)   // 'texto' y 'html' guardan el HTML directo
       }
       setCargando(false)
     })()
@@ -57,6 +57,12 @@ export default function EditorPlantilla() {
       if (!unlayerRef.current) return resolve({ html: htmlTexto, design: null })
       unlayerRef.current.exportHtml((data) => resolve({ html: data.html, design: data.design }))
     })
+  }
+
+  // Devuelve el HTML final según el modo activo (para exportar/copiar)
+  async function obtenerHtml(): Promise<string> {
+    if (tipo === 'visual') return (await exportarVisual()).html
+    return htmlTexto
   }
 
   async function guardar() {
@@ -85,16 +91,17 @@ export default function EditorPlantilla() {
   }
 
   async function exportarHtml() {
-    let html = htmlTexto
-    if (tipo === 'visual') html = (await exportarVisual()).html
-    const doc = `<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`
+    const html = await obtenerHtml()
+    // Si ya es un documento completo, no lo envolvemos de nuevo
+    const doc = /<html[\s>]/i.test(html)
+      ? html
+      : `<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`
     saveAs(new Blob([doc], { type: 'text/html;charset=utf-8' }),
       `${nombre.trim() || 'plantilla'}.html`)
   }
 
   async function copiarHtml() {
-    let html = htmlTexto
-    if (tipo === 'visual') html = (await exportarVisual()).html
+    const html = await obtenerHtml()
     await navigator.clipboard.writeText(html)
     setMsg('HTML copiado al portapapeles (pégalo en Gmail).')
   }
@@ -123,11 +130,11 @@ export default function EditorPlantilla() {
             placeholder="Ej. Recordatorio de cita" />
         </div>
         <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
-          {(['visual', 'texto'] as Tipo[]).map((t) => (
+          {(['visual', 'texto', 'html'] as Tipo[]).map((t) => (
             <button key={t} onClick={() => setTipo(t)}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium ${
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                 tipo === t ? 'bg-[#0D2D6B] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-              {t === 'visual' ? '🎨 Editor visual' : '✍️ Texto enriquecido'}
+              {t === 'visual' ? '🎨 Visual' : t === 'texto' ? '✍️ Texto' : '</> HTML'}
             </button>
           ))}
         </div>
@@ -148,6 +155,22 @@ export default function EditorPlantilla() {
       <div style={{ display: tipo === 'texto' ? 'block' : 'none' }}>
         <RichText value={htmlTexto} onChange={setHtmlTexto} variables={VARIABLES_SUGERIDAS} />
       </div>
+      {tipo === 'html' && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div>
+            <p className="mb-1 text-xs font-medium text-slate-500">Código HTML</p>
+            <textarea value={htmlTexto} onChange={(e) => setHtmlTexto(e.target.value)} spellCheck={false}
+              className="h-[calc(100vh-260px)] min-h-[360px] w-full rounded-lg border border-slate-300 p-3
+                         font-mono text-xs outline-none focus:border-[#16468E]"
+              placeholder="Pega o escribe tu HTML aquí…" />
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-medium text-slate-500">Vista previa</p>
+            <iframe title="preview-html" srcDoc={htmlTexto}
+              className="h-[calc(100vh-260px)] min-h-[360px] w-full rounded-lg border border-slate-300 bg-white" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
