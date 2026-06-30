@@ -121,6 +121,45 @@ export const PLANTILLAS_PREDISENADAS: PlantillaPredisenada[] = [
     `),
   },
   {
+    id: 'tabla-resultados',
+    nombre: 'Tabla de resultados',
+    descripcion: 'Resumen en tabla (exámenes, valores, referencias). Edita las filas en la pestaña HTML.',
+    categoria: 'Datos',
+    html: envolver(`
+      <h1 style="${h1}">Resumen de resultados</h1>
+      <p style="${p}">Estimado(a) <strong>{{nombre}}</strong>, este es el resumen de su atención del <strong>{{fecha}}</strong>:</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 24px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <thead>
+          <tr style="background:${AZUL};color:#ffffff;">
+            <th align="left" style="padding:11px 14px;font-size:13px;">Examen</th>
+            <th align="left" style="padding:11px 14px;font-size:13px;">Resultado</th>
+            <th align="left" style="padding:11px 14px;font-size:13px;">Valor de referencia</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#ffffff;">
+            <td style="padding:10px 14px;font-size:13px;color:#475569;border-top:1px solid #e2e8f0;">{{examen1}}</td>
+            <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;font-weight:bold;">{{resultado1}}</td>
+            <td style="padding:10px 14px;font-size:13px;color:#94a3b8;border-top:1px solid #e2e8f0;">{{referencia1}}</td>
+          </tr>
+          <tr style="background:#f8fafc;">
+            <td style="padding:10px 14px;font-size:13px;color:#475569;border-top:1px solid #e2e8f0;">{{examen2}}</td>
+            <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;font-weight:bold;">{{resultado2}}</td>
+            <td style="padding:10px 14px;font-size:13px;color:#94a3b8;border-top:1px solid #e2e8f0;">{{referencia2}}</td>
+          </tr>
+          <tr style="background:#ffffff;">
+            <td style="padding:10px 14px;font-size:13px;color:#475569;border-top:1px solid #e2e8f0;">{{examen3}}</td>
+            <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;font-weight:bold;">{{resultado3}}</td>
+            <td style="padding:10px 14px;font-size:13px;color:#94a3b8;border-top:1px solid #e2e8f0;">{{referencia3}}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="${p}">Para más información o agendar una consulta de control, comuníquese con nosotros.</p>
+      ${boton('Ver detalle completo')}
+      <p style="font-size:12px;color:#94a3b8;margin:0;">💡 ¿Necesita más o menos filas? Edite esta tabla en la pestaña <strong>&lt;/&gt; HTML</strong> del editor.</p>
+    `),
+  },
+  {
     id: 'encuesta',
     nombre: 'Encuesta de satisfacción',
     descripcion: 'Invita al paciente a calificar su experiencia.',
