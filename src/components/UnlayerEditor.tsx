@@ -48,11 +48,15 @@ const UnlayerEditor = forwardRef<UnlayerRef, Props>(function UnlayerEditor(
     let cancelado = false
     cargarScript().then(() => {
       if (cancelado) return
+      // Project ID de Unlayer (opcional): desbloquea bloques adicionales
+      // (subidas de imágenes, etc.). Se configura en VITE_UNLAYER_PROJECT_ID.
+      const projectId = Number(import.meta.env.VITE_UNLAYER_PROJECT_ID) || undefined
       const editor = window.unlayer.createEditor({
         id: containerId,
         displayMode: 'email',
         locale: 'es-ES',
         appearance: { theme: 'modern_light' },
+        ...(projectId ? { projectId } : {}),
       })
       editorRef.current = editor
       const api: UnlayerRef = {
