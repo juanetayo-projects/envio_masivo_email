@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  --color-azul: #0D2D6B;
+  --color-azul2: #16468E;
+}
+
+:root {
+  --azul: #0D2D6B;
+  --azul-2: #16468E;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light;
+}
+
+html, body, #root {
+  margin: 0;
+  min-height: 100vh;
+  background: #f1f5f9;
+  color: #0f172a;
+}
