@@ -65,7 +65,7 @@ const UnlayerEditor = forwardRef<UnlayerRef, Props>(function UnlayerEditor(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return <div id={containerId} style={{ minHeight }} />
+  return <div id={containerId} style={{ height: '100%', minHeight, width: '100%' }} />
 })
 
 export default UnlayerEditor

@@ -141,8 +141,8 @@ export default function EditorPlantilla() {
 
       {/* Mantener ambos montados; ocultar el inactivo para no perder estado del editor visual */}
       <div style={{ display: tipo === 'visual' ? 'block' : 'none' }}>
-        <div className="overflow-hidden rounded-lg border border-slate-300">
-          <UnlayerEditor ref={unlayerRef} onReady={onReadyUnlayer} minHeight={520} />
+        <div className="h-[calc(100vh-210px)] min-h-[420px] w-full overflow-hidden rounded-lg border border-slate-300">
+          <UnlayerEditor ref={unlayerRef} onReady={onReadyUnlayer} minHeight={420} />
         </div>
       </div>
       <div style={{ display: tipo === 'texto' ? 'block' : 'none' }}>
