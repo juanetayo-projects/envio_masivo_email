@@ -13,7 +13,7 @@ type Props = {
 export default function RichText({ value, onChange, variables = [] }: Props) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false }),
       Link.configure({ openOnClick: false }),
       Image,
     ],

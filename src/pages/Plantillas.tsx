@@ -49,7 +49,7 @@ export default function Plantillas() {
   async function usarPredisenada(pp: PlantillaPredisenada) {
     setCreando(pp.id)
     const { data, error } = await supabase.from('plantillas').insert({
-      nombre: pp.nombre, tipo: 'html', html: pp.html, design_json: null,
+      nombre: pp.nombre, tipo: 'visual', html: pp.html, design_json: pp.design,
       created_by: session?.user.id ?? null,
     }).select('id').single()
     setCreando(null)

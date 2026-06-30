@@ -19,7 +19,7 @@ export default function Reset() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#061026] to-[#0a1f4d] p-4">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="bg-gradient-to-br from-[#0D2D6B] to-[#16468E] px-8 py-8 text-center">
           <Logo blanco className="mx-auto h-14 object-contain" />
