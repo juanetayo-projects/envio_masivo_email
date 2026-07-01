@@ -56,6 +56,14 @@ const UnlayerEditor = forwardRef<UnlayerRef, Props>(function UnlayerEditor(
         displayMode: 'email',
         locale: 'es-ES',
         appearance: { theme: 'modern_light' },
+        // Oculta el watermark "by Unlayer Editor" del panel de herramientas.
+        customCSS: [`
+          a[href*="unlayer.com"],
+          .blockbuilder-branding,
+          [class*="branding"],
+          [class*="poweredBy"],
+          [class*="powered-by"] { display: none !important; }
+        `],
         ...(projectId ? { projectId } : {}),
       })
       editorRef.current = editor
