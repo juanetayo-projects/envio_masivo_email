@@ -33,6 +33,8 @@ Deno.serve(async (req) => {
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   const { data: envio } = await admin.from('envios').select('email').eq('id', token).maybeSingle()
   if (!envio) return json(404, { error: 'Enlace inválido' })
+  // Pasados 12 meses el correo ya no se conserva: el enlace antiguo no tiene a quién dar de baja.
+  if (String(envio.email).endsWith('@eliminado.invalid')) return json(410, { error: 'Enlace vencido' })
 
   const { error } = await admin.from('correos_bloqueados').upsert(
     { email: String(envio.email).trim().toLowerCase(), motivo: 'baja', nota: 'Solicitada por el destinatario' },

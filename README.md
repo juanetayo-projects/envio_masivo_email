@@ -55,6 +55,12 @@ quedan como `fallido` y se reintentan con el botón del informe.
 Cada correo de campaña lleva `List-Unsubscribe` y un enlace de baja (`{{enlace_baja}}`
 o un pie automático), salvo que la campaña lo desactive. La baja entra a la lista de bloqueo.
 
+## Retención de datos
+
+Los datos personales de cada campaña se conservan 12 meses. Después, la función `retencion`
+(cron diario) anonimiza a los destinatarios y borra sus eventos y adjuntos. Se conservan los
+estados, para las métricas, y la lista de bloqueo, para seguir respetando las bajas.
+
 ## Pruebas
 
 ```bash
