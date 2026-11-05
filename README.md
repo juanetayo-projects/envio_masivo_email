@@ -52,6 +52,9 @@ Repetir una llamada no duplica correos: cada lote usa su `lote_id` como
 de la misma campaña. Los errores temporales se reintentan solos; los definitivos
 quedan como `fallido` y se reintentan con el botón del informe.
 
+Cada correo de campaña lleva `List-Unsubscribe` y un enlace de baja (`{{enlace_baja}}`
+o un pie automático), salvo que la campaña lo desactive. La baja entra a la lista de bloqueo.
+
 ## Pruebas
 
 ```bash

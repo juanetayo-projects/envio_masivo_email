@@ -7,11 +7,12 @@ import { Boton, Card } from './components/ui'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Reset from './pages/Reset'
-import Dashboard from './pages/Dashboard'
 import Plantillas from './pages/Plantillas'
 import Campanias from './pages/Campanias'
 
 // Rutas pesadas (TipTap / Unlayer / xlsx / recharts / exceljs) en chunks aparte
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Baja = lazy(() => import('./pages/Baja'))
 const EditorPlantilla = lazy(() => import('./pages/EditorPlantilla'))
 const NuevaCampania = lazy(() => import('./pages/NuevaCampania'))
 const Informe = lazy(() => import('./pages/Informe'))
@@ -50,6 +51,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/reset" element={<Reset />} />
+            <Route path="/baja" element={<Baja />} />
             <Route element={<Guard><Layout /></Guard>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/plantillas" element={<Plantillas />} />

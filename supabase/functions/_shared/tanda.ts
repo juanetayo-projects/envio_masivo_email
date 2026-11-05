@@ -3,7 +3,7 @@
 // Garantía contra duplicados: cada lote usa su lote_id como Idempotency-Key en
 // Resend (24 h). Si una tanda se interrumpe, el lote se reintenta con la misma
 // clave y Resend responde lo mismo sin volver a enviar.
-import { fusionar, fusionarAsunto } from './merge.ts'
+import { fusionarAsunto, prepararCuerpo } from './merge.ts'
 
 export type Envio = {
   id: string
@@ -28,6 +28,9 @@ export type Tanda = {
   apiKey: string
   from: string
   replyTo?: string | null
+  remitente?: string
+  incluirBaja?: boolean
+  urlFuncionBaja?: string   // destino de List-Unsubscribe
   asunto: string
   html: string
   adjuntos: { filename: string; path: string }[]
@@ -81,8 +84,14 @@ export async function procesarTanda(t: Tanda): Promise<ResultadoTanda> {
     ...(t.replyTo ? { reply_to: t.replyTo } : {}),
     to: [e.email],
     subject: fusionarAsunto(t.asunto, e.datos),
-    html: fusionar(t.html, e.datos),
-    headers: { 'X-Entity-Ref-ID': e.id },
+    html: prepararCuerpo(t.html, e.datos, { token: e.id, remitente: t.remitente ?? '', incluir: !!t.incluirBaja }),
+    headers: {
+      'X-Entity-Ref-ID': e.id,
+      ...(t.incluirBaja && t.urlFuncionBaja ? {
+        'List-Unsubscribe': `<${t.urlFuncionBaja}?t=${e.id}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      } : {}),
+    },
     tags: [{ name: 'envio_id', value: e.id }],   // el webhook localiza el envío con esto
     ...(t.adjuntos.length ? { attachments: t.adjuntos } : {}),
   })

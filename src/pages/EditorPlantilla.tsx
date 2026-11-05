@@ -12,7 +12,7 @@ import { revisarHtml } from '../lib/revisarHtml'
 type Tipo = 'visual' | 'texto' | 'html'
 
 // Variables sugeridas (las columnas reales del Excel se aplican en la campaña).
-const VARIABLES_SUGERIDAS = ['email', 'nombre']
+const VARIABLES_SUGERIDAS = ['email', 'nombre', 'enlace_baja']
 
 export default function EditorPlantilla() {
   const { id } = useParams()
@@ -144,7 +144,7 @@ export default function EditorPlantilla() {
       <Card className="mb-3 bg-amber-50 p-3 text-xs text-amber-800">
         💡 Usa variables como <code className="rounded bg-white px-1">{'{{nombre}}'}</code>,{' '}
         <code className="rounded bg-white px-1">{'{{email}}'}</code> o cualquier{' '}
-        <code className="rounded bg-white px-1">{'{{columna}}'}</code> de tu Excel. Se reemplazan por destinatario al enviar.
+        <code className="rounded bg-white px-1">{'{{columna}}'}</code> de tu Excel. Se reemplazan por destinatario al enviar. Para ubicar tú mismo la baja usa <code className="rounded bg-white px-1">{'{{enlace_baja}}'}</code>; si no, se agrega un pie automático.
       </Card>
 
       {/* Mantener ambos montados; ocultar el inactivo para no perder estado del editor visual */}

@@ -5,6 +5,7 @@ export type ResultadoImport = {
   columnas: string[]          // encabezados (1ª = email)
   filas: FilaDestinatario[]   // filas con email válido, sin repetidos
   invalidas: number           // filas descartadas por email inválido/vacío
+  descartadas: FilaDestinatario[]   // esas mismas filas, para poder corregirlas
   duplicados: number          // filas descartadas por email ya presente en el archivo
   total: number               // total de filas leídas
 }
@@ -42,7 +43,7 @@ export async function leerExcel(file: File): Promise<ResultadoImport> {
   const buf = await file.arrayBuffer()
   const wb = XLSX.read(buf, { type: 'array', cellNF: true })
   const hoja = wb.Sheets[wb.SheetNames[0]]
-  const vacio: ResultadoImport = { columnas: [], filas: [], invalidas: 0, duplicados: 0, total: 0 }
+  const vacio: ResultadoImport = { columnas: [], filas: [], invalidas: 0, descartadas: [], duplicados: 0, total: 0 }
   if (!hoja?.['!ref']) return vacio
 
   const rango = XLSX.utils.decode_range(hoja['!ref'])
@@ -54,28 +55,29 @@ export async function leerExcel(file: File): Promise<ResultadoImport> {
     }
     if (fila.some((v) => v !== '')) matriz.push(fila)
   }
-  if (matriz.length < 2) return vacio
+  if (matriz.length === 0) return vacio   // solo encabezados: se pueden agregar a mano
 
   const encabezados = matriz[0].map((c, i) => String(c ?? '').trim() || `columna_${i + 1}`)
   const cuerpo = matriz.slice(1)
 
   const filas: FilaDestinatario[] = []
+  const descartadas: FilaDestinatario[] = []
   const vistos = new Set<string>()
   let invalidas = 0
   let duplicados = 0
   for (const fila of cuerpo) {
     const email = String(fila[0] ?? '').trim()
-    if (!emailValido(email)) { invalidas++; continue }
+    const datos: Record<string, unknown> = {}
+    encabezados.forEach((h, i) => { datos[h] = fila[i] ?? '' })
+    if (!emailValido(email)) { invalidas++; descartadas.push({ email, datos }); continue }
     const clave = email.toLowerCase()
     if (vistos.has(clave)) { duplicados++; continue }
     vistos.add(clave)
-    const datos: Record<string, unknown> = {}
-    encabezados.forEach((h, i) => { datos[h] = fila[i] ?? '' })
     datos['email'] = email     // alias siempre disponible
     filas.push({ email, datos })
   }
 
-  return { columnas: encabezados, filas, invalidas, duplicados, total: cuerpo.length }
+  return { columnas: encabezados, filas, invalidas, descartadas, duplicados, total: cuerpo.length }
 }
 
 // Plantilla de Excel de ejemplo para que el usuario sepa el formato

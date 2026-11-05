@@ -7,7 +7,7 @@ import { PageHeader, Card, Boton, Modal, TableHead, filaZebra } from '../compone
 
 type Bloqueado = {
   email: string
-  motivo: 'rebote' | 'queja' | 'manual'
+  motivo: 'rebote' | 'queja' | 'manual' | 'baja'
   nota: string | null
   created_at: string
 }
@@ -15,6 +15,7 @@ type Bloqueado = {
 const MOTIVOS: Record<Bloqueado['motivo'], { etiqueta: string; color: string }> = {
   rebote: { etiqueta: 'Rebote', color: 'bg-amber-100 text-amber-700' },
   queja: { etiqueta: 'Queja', color: 'bg-red-100 text-red-700' },
+  baja: { etiqueta: 'Baja', color: 'bg-blue-100 text-blue-700' },
   manual: { etiqueta: 'Manual', color: 'bg-slate-100 text-slate-600' },
 }
 const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#16468E] focus:ring-1 focus:ring-[#16468E]'
@@ -87,7 +88,7 @@ export default function Bloqueados() {
         </Boton>
       } />
       <p className="mb-4 text-sm text-slate-500">
-        Estos correos no reciben campañas. Los rebotes permanentes y las quejas se agregan solos.
+        Estos correos no reciben campañas. Los rebotes permanentes, las quejas y las bajas se agregan solos.
       </p>
       {error && <p className="mb-3 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
 
@@ -160,7 +161,8 @@ export default function Bloqueados() {
       <Modal open={aEliminar !== null} onClose={() => setAEliminar(null)} titulo="Quitar de la lista">
         <p className="text-sm text-slate-600">
           <b>{aEliminar?.email}</b> podrá volver a recibir campañas.
-          {aEliminar?.motivo !== 'manual' && ' Esta dirección rebotó o presentó una queja: enviarle de nuevo puede afectar la reputación del dominio.'}
+          {aEliminar?.motivo === 'baja' && ' Esta persona pidió no recibir más correos: quítala solo si te autorizó de nuevo.'}
+          {(aEliminar?.motivo === 'rebote' || aEliminar?.motivo === 'queja') && ' Esta dirección rebotó o presentó una queja: enviarle de nuevo puede afectar la reputación del dominio.'}
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <Boton variante="secundario" onClick={() => setAEliminar(null)}>Cancelar</Boton>

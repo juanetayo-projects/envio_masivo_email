@@ -1,4 +1,5 @@
 // Depuración de destinatarios al importar: dominios inexistentes y filtro por columna.
+import { emailValido } from './excel.ts'
 import type { FilaDestinatario } from './excel'
 
 export type EstadoDominio = 'valido' | 'inexistente' | 'desconocido'
@@ -68,6 +69,37 @@ export async function verificarDominios(
 }
 
 const texto = (v: unknown) => String(v ?? '').trim()
+
+// Agrega (original = null) o edita una fila. La primera columna es el correo.
+export function guardarFila(
+  filas: FilaDestinatario[],
+  columnas: string[],
+  original: string | null,
+  valores: Record<string, string>,
+): { filas: FilaDestinatario[]; fila: FilaDestinatario } | { error: string } {
+  const email = texto(valores[columnas[0]])
+  if (!emailValido(email)) return { error: 'Escribe un correo válido.' }
+
+  const anterior = original?.toLowerCase() ?? null
+  const clave = email.toLowerCase()
+  if (clave !== anterior && filas.some((f) => f.email.toLowerCase() === clave)) {
+    return { error: 'Ese correo ya está en la lista.' }
+  }
+
+  const datos: Record<string, unknown> = {}
+  for (const c of columnas) datos[c] = texto(valores[c])
+  datos[columnas[0]] = email
+  datos['email'] = email   // alias siempre disponible
+  const fila = { email, datos }
+
+  if (anterior === null) return { filas: [...filas, fila], fila }
+  return { filas: filas.map((f) => (f.email.toLowerCase() === anterior ? fila : f)), fila }
+}
+
+export function eliminarFila(filas: FilaDestinatario[], email: string): FilaDestinatario[] {
+  const clave = email.toLowerCase()
+  return filas.filter((f) => f.email.toLowerCase() !== clave)
+}
 
 export function valoresDeColumna(filas: FilaDestinatario[], columna: string): string[] {
   const valores = new Set(filas.map((f) => texto(f.datos[columna])))

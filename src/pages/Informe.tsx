@@ -18,6 +18,7 @@ type Campania = {
 }
 
 const REFRESCO_MS = 10_000
+const TAMANO_PAGINA = 1000
 
 const ESTADOS = [
   { key: 'enviado', label: 'Enviados', color: '#16468E' },
@@ -60,8 +61,15 @@ export default function Informe() {
   async function cargar() {
     const { data: c } = await supabase.from('campanias').select('*').eq('id', id).single()
     setCampania(c as Campania)
-    const { data: e } = await supabase.from('envios').select('id,email,estado,enviado_at,error').eq('campania_id', id)
-    setEnvios((e as Envio[]) ?? [])
+    // Supabase devuelve 1.000 filas por consulta: se piden por páginas hasta traerlas todas.
+    const todos: Envio[] = []
+    for (let desde = 0; ; desde += TAMANO_PAGINA) {
+      const { data: e } = await supabase.from('envios').select('id,email,estado,enviado_at,error')
+        .eq('campania_id', id).order('id').range(desde, desde + TAMANO_PAGINA - 1)
+      todos.push(...((e as Envio[]) ?? []))
+      if (!e || e.length < TAMANO_PAGINA) break
+    }
+    setEnvios(todos)
     setCargando(false)
   }
   useEffect(() => { cargar() }, [id])
@@ -86,7 +94,9 @@ export default function Informe() {
   // Entregados/abiertos/clics son acumulativos en el embudo
   const entregadosOMas = (conteos.entregado ?? 0) + (conteos.abierto ?? 0) + (conteos.clic ?? 0)
   const abiertosOMas = (conteos.abierto ?? 0) + (conteos.clic ?? 0)
-  const pct = (n: number) => total ? `${Math.round((n / total) * 100)}%` : '—'
+  // Las tasas se calculan sobre lo que realmente salió, sin omitidos, fallidos ni pendientes.
+  const salieron = total - sinTerminar - fallidos - (conteos.omitido ?? 0)
+  const pct = (n: number) => salieron ? `${Math.round((n / salieron) * 100)}% de lo enviado` : '—'
 
   const dataChart = ESTADOS.map((s) => ({ ...s, valor: conteos[s.key] ?? 0 })).filter((d) => d.valor > 0)
 
@@ -153,11 +163,12 @@ export default function Informe() {
         </Card>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <MetricCard titulo="Destinatarios" valor={total} />
         <MetricCard titulo="Entregados" valor={entregadosOMas} sub={pct(entregadosOMas)} />
         <MetricCard titulo="Aperturas" valor={abiertosOMas} sub={pct(abiertosOMas)} />
         <MetricCard titulo="Clics" valor={conteos.clic ?? 0} sub={pct(conteos.clic ?? 0)} />
+        <MetricCard titulo="Rebotes" valor={conteos.rebote ?? 0} sub={pct(conteos.rebote ?? 0)} />
       </div>
 
       <Card className="mb-6">

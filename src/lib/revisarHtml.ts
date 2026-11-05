@@ -27,5 +27,9 @@ export function revisarHtml(html: string): string[] {
     avisos.push(`Usa ${etiquetas.map((e) => `<${e}>`).join(', ')}: los clientes de correo lo bloquean y puede enviarlo a spam.`)
   }
 
+  if (/unsubscribe|darse de baja|cancelar suscripci/i.test(html) && !/\{\{\s*enlace_baja\s*\}\}/i.test(html)) {
+    avisos.push('Menciona una baja o "unsubscribe", pero no usa {{enlace_baja}}: ese enlace no funcionará. Reemplázalo por {{enlace_baja}}.')
+  }
+
   return avisos
 }

@@ -5,10 +5,11 @@ import { PageHeader, Card, Boton, BarraProgreso, Modal } from '../components/ui'
 import { revisarHtml } from '../lib/revisarHtml'
 import { leerExcel, descargarPlantillaEjemplo } from '../lib/excel'
 import type { ResultadoImport } from '../lib/excel'
-import { fusionar, fusionarAsunto, variablesFaltantes } from '../lib/merge'
+import { fusionarAsunto, prepararCuerpo, variablesFaltantes } from '../lib/merge'
 import { ejecutarEnvio, mensajeDeError } from '../lib/envioCampania'
 import type { Progreso } from '../lib/envioCampania'
-import { aplicarFiltro, dominioDe, valoresDeColumna, verificarDominios } from '../lib/destinatarios'
+import { aplicarFiltro, dominioDe, eliminarFila, guardarFila, valoresDeColumna, verificarDominios } from '../lib/destinatarios'
+import TablaDestinatarios from '../components/TablaDestinatarios'
 import type { Plantilla } from './Plantillas'
 
 type Adjunto = { nombre: string; path: string; mime: string; size: number }
@@ -29,6 +30,7 @@ export default function NuevaCampania() {
   const [remitenteId, setRemitenteId] = useState('')
   const [remitenteNombre, setRemitenteNombre] = useState('')
   const [responderA, setResponderA] = useState('')
+  const [incluirBaja, setIncluirBaja] = useState(true)
 
   // Paso 2
   const [excel, setExcel] = useState<ResultadoImport | null>(null)
@@ -79,13 +81,14 @@ export default function NuevaCampania() {
   const avisosHtml = useMemo(() => revisarHtml(plantilla?.html ?? ''), [plantilla])
 
   const excluidos = useMemo(() => {
-    const lista: { email: string; razon: string }[] = []
+    const mapa = new Map<string, string>()
     for (const f of excel?.filas ?? []) {
-      const motivo = bloqueados.get(f.email.toLowerCase())
-      if (motivo) lista.push({ email: f.email, razon: `Lista de bloqueo (${motivo})` })
-      else if (dominiosInexistentes.has(dominioDe(f.email))) lista.push({ email: f.email, razon: 'El dominio no existe o no recibe correo' })
+      const clave = f.email.toLowerCase()
+      const motivo = bloqueados.get(clave)
+      if (motivo) mapa.set(clave, `lista de bloqueo (${motivo})`)
+      else if (dominiosInexistentes.has(dominioDe(f.email))) mapa.set(clave, 'el dominio no existe o no recibe correo')
     }
-    return lista
+    return mapa
   }, [excel, bloqueados, dominiosInexistentes])
 
   const valoresColumna = useMemo(
@@ -94,10 +97,14 @@ export default function NuevaCampania() {
   )
 
   // Los destinatarios reales de la campaña: se usan en la revisión y en el envío.
-  const destinatarios = useMemo(() => {
-    const fuera = new Set(excluidos.map((x) => x.email))
-    return aplicarFiltro(excel?.filas ?? [], columnaFiltro, valoresFiltro).filter((f) => !fuera.has(f.email))
-  }, [excel, excluidos, columnaFiltro, valoresFiltro])
+  const filasFiltradas = useMemo(
+    () => aplicarFiltro(excel?.filas ?? [], columnaFiltro, valoresFiltro),
+    [excel, columnaFiltro, valoresFiltro],
+  )
+  const destinatarios = useMemo(
+    () => filasFiltradas.filter((f) => !excluidos.has(f.email.toLowerCase())),
+    [filasFiltradas, excluidos],
+  )
 
   const faltantes = useMemo(() => {
     if (!plantilla || !excel) return []
@@ -110,6 +117,7 @@ export default function NuevaCampania() {
     if (!f) return
     e.target.value = ''   // permite volver a elegir el mismo archivo corregido
     const turno = ++importacion.current
+    setRevisando(false)
     setExcelNombre(f.name)
     setError(null)
     setColumnaFiltro(''); setValoresFiltro(new Set())
@@ -137,6 +145,39 @@ export default function NuevaCampania() {
     setRevisando(false)
   }
 
+  // Un correo agregado o editado pasa por la misma revisión que los del archivo.
+  async function revisarCorreo(email: string) {
+    const dominio = dominioDe(email)
+    const [lista, dominios] = await Promise.all([
+      supabase.rpc('buscar_bloqueados', { p_emails: [email] }),
+      verificarDominios([dominio]),
+    ])
+    const hallado = ((lista.data ?? []) as { email: string; motivo: string }[])[0]
+    if (hallado) setBloqueados((m) => new Map(m).set(hallado.email, hallado.motivo))
+    if (dominios[dominio] === 'inexistente') setDominiosInexistentes((s) => new Set(s).add(dominio))
+  }
+
+  async function guardarDestinatario(
+    original: string | null,
+    valores: Record<string, string>,
+    indiceDescartada: number | null,
+  ): Promise<string | null> {
+    if (!excel) return 'No hay archivo cargado.'
+    const r = guardarFila(excel.filas, excel.columnas, original, valores)
+    if ('error' in r) return r.error
+    await revisarCorreo(r.fila.email)
+    setExcel({
+      ...excel,
+      filas: r.filas,
+      descartadas: excel.descartadas.filter((_, i) => i !== indiceDescartada),
+    })
+    // Si hay un filtro activo, el registro guardado debe seguir visible.
+    if (columnaFiltro && valoresFiltro.size > 0) {
+      cambiarValorFiltro(String(r.fila.datos[columnaFiltro] ?? '').trim(), true)
+    }
+    return null
+  }
+
   function cambiarValorFiltro(valor: string, activo: boolean) {
     setValoresFiltro((actual) => {
       const nuevo = new Set(actual)
@@ -151,7 +192,7 @@ export default function NuevaCampania() {
     const { data, error: ep } = await supabase.functions.invoke('enviar-prueba', {
       body: {
         plantilla_id: plantillaId, asunto, datos: destinatarios[0]?.datos ?? {}, adjuntos,
-        remitente_id: remitenteId, remitente_nombre: remitenteNombre, responder_a: responderA,
+        remitente_id: remitenteId, remitente_nombre: remitenteNombre, responder_a: responderA, incluir_baja: incluirBaja,
       },
     })
     setEnviandoPrueba(false)
@@ -189,7 +230,7 @@ export default function NuevaCampania() {
     const { error: ce } = await supabase.rpc('crear_campania', {
       p_campania: {
         id: tempId, nombre, asunto, plantilla_id: plantillaId, adjuntos,
-        remitente_id: remitenteId, remitente_nombre: remitenteNombre, responder_a: responderA,
+        remitente_id: remitenteId, remitente_nombre: remitenteNombre, responder_a: responderA, incluir_baja: incluirBaja,
       },
       p_envios: destinatarios.map((f) => ({ email: f.email, datos: f.datos })),
     })
@@ -274,6 +315,15 @@ export default function NuevaCampania() {
                   placeholder="correo@ejemplo.com" />
               </Field>
             </div>
+            <label className="flex items-start gap-2 text-sm text-slate-700">
+              <input type="checkbox" className="mt-0.5" checked={incluirBaja} onChange={(e) => setIncluirBaja(e.target.checked)} />
+              <span>
+                Incluir enlace para darse de baja
+                <span className="block text-xs text-slate-500">
+                  Recomendado en correos comerciales y masivos. Desmárcalo solo en avisos operativos, como un recordatorio de cita.
+                </span>
+              </span>
+            </label>
             {plantillasList.length === 0 && (
               <p className="text-sm text-amber-600">No hay plantillas. Crea una en la sección Plantillas.</p>
             )}
@@ -301,21 +351,12 @@ export default function NuevaCampania() {
                 <div className="flex flex-wrap gap-4 text-sm">
                   <Badge color="emerald">{destinatarios.length} destinatarios</Badge>
                   {revisando && <Badge color="slate">Verificando dominios y lista de bloqueo…</Badge>}
-                  {excluidos.length > 0 && <Badge color="amber">{excluidos.length} excluidos</Badge>}
+                  {excluidos.size > 0 && <Badge color="amber">{excluidos.size === 1 ? '1 excluido' : `${excluidos.size} excluidos`}</Badge>}
                   {dominiosSinVerificar > 0 && <Badge color="slate">{dominiosSinVerificar} dominios sin verificar</Badge>}
-                  {excel.invalidas > 0 && <Badge color="amber">{excel.invalidas} sin email válido (descartados)</Badge>}
+                  {excel.descartadas.length > 0 && <Badge color="amber">{excel.descartadas.length} sin email válido</Badge>}
                   {excel.duplicados > 0 && <Badge color="amber">{excel.duplicados === 1 ? '1 correo repetido (descartado)' : `${excel.duplicados} correos repetidos (descartados)`}</Badge>}
                   <Badge color="slate">{excel.columnas.length} columnas</Badge>
                 </div>
-
-                {excluidos.length > 0 && (
-                  <details className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-                    <summary className="cursor-pointer font-medium">Ver correos excluidos ({excluidos.length})</summary>
-                    <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
-                      {excluidos.map((x) => <li key={x.email}><b>{x.email}</b>: {x.razon}</li>)}
-                    </ul>
-                  </details>
-                )}
 
                 <div className="rounded-lg border border-slate-200 p-3">
                   <Field label="Enviar solo a quienes cumplan (opcional)">
@@ -338,22 +379,17 @@ export default function NuevaCampania() {
                   )}
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-slate-600">
-                      <tr>{excel.columnas.map((c, i) => (
-                        <th key={c} className="px-3 py-2 font-medium">{c}{i === 0 && ' (email)'}</th>))}</tr>
-                    </thead>
-                    <tbody>
-                      {destinatarios.slice(0, 5).map((f, idx) => (
-                        <tr key={idx} className="border-t border-slate-100">
-                          {excel.columnas.map((c) => <td key={c} className="px-3 py-2">{String(f.datos[c] ?? '')}</td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {destinatarios.length > 5 && <p className="text-xs text-slate-400">Mostrando 5 de {destinatarios.length}.</p>}
+                <TablaDestinatarios
+                  filas={filasFiltradas}
+                  columnas={excel.columnas}
+                  excluidos={excluidos}
+                  descartadas={excel.descartadas}
+                  onGuardar={guardarDestinatario}
+                  onEliminar={(email) => setExcel({ ...excel, filas: eliminarFila(excel.filas, email) })}
+                  onEliminarDescartada={(indice) => setExcel({
+                    ...excel, descartadas: excel.descartadas.filter((_, i) => i !== indice),
+                  })}
+                />
               </>
             )}
           </div>
@@ -415,7 +451,7 @@ export default function NuevaCampania() {
                   <b>Asunto:</b> {fusionarAsunto(asunto, destinatarios[0].datos)}
                 </div>
                 <iframe sandbox="" title="preview" className="h-80 w-full"
-                  srcDoc={fusionar(plantilla.html, destinatarios[0].datos)} />
+                  srcDoc={prepararCuerpo(plantilla.html, destinatarios[0].datos, { token: 'prueba', remitente: remitenteNombre, incluir: incluirBaja })} />
               </div>
             </div>
           </div>
