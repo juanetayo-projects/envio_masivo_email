@@ -41,8 +41,11 @@ El webhook de Resend debe apuntar a:
 ## Cómo funciona el envío
 
 `enviar-campania` procesa una tanda de ~90 s y responde; la app vuelve a llamarla
-hasta terminar. Si se cierra la ventana, el envío se pausa y se continúa desde el
-informe de la campaña.
+hasta terminar. Si se cierra la ventana, `pg_cron` invoca `procesar-cola` cada minuto
+y el servidor termina la campaña (migración `0009`, token en Vault).
+
+Los correos en `correos_bloqueados` no se envían: los rebotes permanentes y las quejas
+se agregan solos desde el webhook, y `reclamar_lote` los omite justo antes de enviar.
 
 Repetir una llamada no duplica correos: cada lote usa su `lote_id` como
 `Idempotency-Key` de Resend (válida 24 h) y un bloqueo impide dos tandas simultáneas

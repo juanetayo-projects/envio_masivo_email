@@ -44,6 +44,12 @@ export function fusionarAsunto(asunto: string, datos: Record<string, unknown>): 
   return reemplazar(asunto, datos, (v) => String(v ?? '')).replace(/[\r\n]+/g, ' ').trim()
 }
 
+// Nombre visible seguro para el campo From: comillas para que admita comas y tildes.
+export function formatearRemitente(nombre: string, email: string): string {
+  const limpio = nombre.replace(/["<>\\\r\n]/g, '').trim()
+  return limpio ? `"${limpio}" <${email}>` : email
+}
+
 export function extraerVariables(texto: string): string[] {
   const vistas = new Set<string>()
   for (const m of texto.matchAll(VAR_RE)) vistas.add(m[1].trim())

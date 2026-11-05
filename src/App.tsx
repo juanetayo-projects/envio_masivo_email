@@ -16,6 +16,8 @@ const EditorPlantilla = lazy(() => import('./pages/EditorPlantilla'))
 const NuevaCampania = lazy(() => import('./pages/NuevaCampania'))
 const Informe = lazy(() => import('./pages/Informe'))
 const Usuarios = lazy(() => import('./pages/admin/Usuarios'))
+const Bloqueados = lazy(() => import('./pages/Bloqueados'))
+const Remitentes = lazy(() => import('./pages/admin/Remitentes'))
 
 const Cargando = () => <div className="p-8 text-slate-400">Cargando…</div>
 
@@ -55,6 +57,8 @@ export default function App() {
               <Route path="/campanias" element={<Campanias />} />
               <Route path="/campanias/nueva" element={<NuevaCampania />} />
               <Route path="/campanias/:id/informe" element={<Informe />} />
+              <Route path="/bloqueados" element={<Bloqueados />} />
+              <Route path="/remitentes" element={<Guard roles={['admin']}><Remitentes /></Guard>} />
               <Route path="/usuarios" element={<Guard roles={['admin']}><Usuarios /></Guard>} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

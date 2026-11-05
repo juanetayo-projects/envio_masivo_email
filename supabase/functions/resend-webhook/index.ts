@@ -53,17 +53,19 @@ Deno.serve(async (req) => {
   // Localizar el envío por resend_id (email_id) o por la tag envio_id
   let envio: any = null
   if (emailId) {
-    const { data } = await admin.from('envios').select('id, estado').eq('resend_id', emailId).maybeSingle()
+    const { data } = await admin.from('envios').select('id, estado, email').eq('resend_id', emailId).maybeSingle()
     envio = data
   }
   if (!envio && refId) {
-    const { data } = await admin.from('envios').select('id, estado').eq('id', refId).maybeSingle()
+    const { data } = await admin.from('envios').select('id, estado, email').eq('id', refId).maybeSingle()
     envio = data
   }
 
   if (envio) {
-    const esRetroceso = PRIORIDAD[mapeo.estado] !== undefined && PRIORIDAD[envio.estado] !== undefined
-      && PRIORIDAD[mapeo.estado] <= PRIORIDAD[envio.estado]
+    // Un rebote es definitivo: un evento posterior no lo cambia.
+    const esRetroceso = envio.estado === 'rebote' || (
+      PRIORIDAD[mapeo.estado] !== undefined && PRIORIDAD[envio.estado] !== undefined
+      && PRIORIDAD[mapeo.estado] <= PRIORIDAD[envio.estado])
     const update: Record<string, unknown> = {}
     if (!esRetroceso) update.estado = mapeo.estado
     if (mapeo.campo) update[mapeo.campo] = new Date().toISOString()
@@ -72,6 +74,17 @@ Deno.serve(async (req) => {
     await admin.from('eventos_email').insert({
       envio_id: envio.id, resend_id: emailId, tipo, payload: evt,
     })
+
+    // Un rebote temporal (buzón lleno, por ejemplo) no bloquea la dirección.
+    const motivo = tipo === 'email.complained' ? 'queja'
+      : tipo === 'email.bounced' && evt.data?.bounce?.type === 'Permanent' ? 'rebote'
+      : null
+    if (motivo) {
+      await admin.from('correos_bloqueados').upsert(
+        { email: String(envio.email).trim().toLowerCase(), motivo },
+        { onConflict: 'email', ignoreDuplicates: true },
+      )
+    }
   }
 
   return json(200, { ok: true })

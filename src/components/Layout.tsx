@@ -8,6 +8,7 @@ const navItems = [
   { to: '/plantillas', label: 'Plantillas', icon: '🎨' },
   { to: '/campanias/nueva', label: 'Nueva campaña', icon: '✉️' },
   { to: '/campanias', label: 'Campañas', icon: '📨' },
+  { to: '/bloqueados', label: 'Lista de bloqueo', icon: '🚫' },
 ]
 
 export default function Layout() {
@@ -36,6 +37,11 @@ export default function Layout() {
               <span>{it.icon}</span>{it.label}
             </NavLink>
           ))}
+          {esAdmin && (
+            <NavLink to="/remitentes" className={linkClass}>
+              <span>📤</span>Remitentes
+            </NavLink>
+          )}
           {esAdmin && (
             <NavLink to="/usuarios" className={linkClass}>
               <span>👤</span>Usuarios

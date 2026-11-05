@@ -86,7 +86,7 @@ export default function Plantillas() {
                   {p.tipo === 'visual' ? 'Visual' : p.tipo === 'html' ? 'HTML' : 'Texto'}
                 </span>
               </div>
-              <iframe title={p.nombre} srcDoc={p.html}
+              <iframe sandbox="" title={p.nombre} srcDoc={p.html}
                 className="mb-3 h-36 w-full rounded border border-slate-100 bg-white" />
               <p className="mb-3 text-xs text-slate-400">Actualizada {fecha(p.updated_at)}</p>
               <div className="mt-auto flex gap-2">
@@ -115,7 +115,7 @@ export default function Plantillas() {
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {PLANTILLAS_PREDISENADAS.map((pp) => (
                   <div key={pp.id} className="flex flex-col overflow-hidden rounded-xl border border-slate-200">
-                    <iframe title={pp.nombre} srcDoc={pp.html}
+                    <iframe sandbox="" title={pp.nombre} srcDoc={pp.html}
                       className="h-48 w-full border-b border-slate-100 bg-white" />
                     <div className="flex flex-1 flex-col p-4">
                       <div className="mb-1 flex items-center gap-2">

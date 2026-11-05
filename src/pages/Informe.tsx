@@ -12,7 +12,12 @@ type Envio = {
   id: string; email: string; estado: string
   enviado_at: string | null; error: string | null
 }
-type Campania = { id: string; nombre: string; asunto: string; estado: string; total_destinatarios: number }
+type Campania = {
+  id: string; nombre: string; asunto: string; estado: string; total_destinatarios: number
+  en_cola: boolean; error_detalle: string | null
+}
+
+const REFRESCO_MS = 10_000
 
 const ESTADOS = [
   { key: 'enviado', label: 'Enviados', color: '#16468E' },
@@ -23,6 +28,7 @@ const ESTADOS = [
   { key: 'fallido', label: 'Fallidos', color: '#DC2626' },
   { key: 'pendiente', label: 'Pendientes', color: '#94A3B8' },
   { key: 'enviando', label: 'En proceso', color: '#64748B' },
+  { key: 'omitido', label: 'Omitidos (lista de bloqueo)', color: '#475569' },
 ]
 
 export default function Informe() {
@@ -59,6 +65,14 @@ export default function Informe() {
     setCargando(false)
   }
   useEffect(() => { cargar() }, [id])
+
+  // Mientras el servidor envía, el informe se actualiza solo.
+  const enSegundoPlano = !!campania?.en_cola && !enviando
+  useEffect(() => {
+    if (!enSegundoPlano) return
+    const intervalo = setInterval(cargar, REFRESCO_MS)
+    return () => clearInterval(intervalo)
+  }, [enSegundoPlano, id])
 
   const conteos = useMemo(() => {
     const m: Record<string, number> = {}
@@ -103,8 +117,8 @@ export default function Informe() {
         titulo={confirmar === 'reintentar' ? 'Reintentar fallidos' : 'Continuar envío'}>
         <p className="text-sm text-slate-600">
           {confirmar === 'reintentar'
-            ? `Se volverá a intentar el envío a ${fallidos} destinatarios fallidos${sinTerminar ? ` y a ${sinTerminar} pendientes` : ''}.`
-            : `Se enviará a los ${sinTerminar} destinatarios pendientes.`}
+            ? `Destinatarios que se reintentarán: ${fallidos + sinTerminar}.`
+            : `Destinatarios pendientes por enviar: ${sinTerminar}.`}
           {' '}Quienes ya recibieron el correo no lo recibirán de nuevo.
         </p>
         <div className="mt-4 flex justify-end gap-2">
@@ -113,11 +127,29 @@ export default function Informe() {
         </div>
       </Modal>
 
+      {campania.error_detalle && !enviando && (
+        <p className="mb-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">
+          Envío detenido: {campania.error_detalle}
+        </p>
+      )}
+      {enSegundoPlano && (
+        <p className="mb-4 rounded-lg bg-blue-50 px-4 py-2 text-sm text-[#16468E]">
+          Enviando en el servidor. Puedes cerrar esta ventana; este informe se actualiza solo.
+        </p>
+      )}
+
+      {enSegundoPlano && (
+        <Card className="mb-6">
+          <BarraProgreso total={total} pendientes={sinTerminar} fallidos={fallidos} omitidos={conteos.omitido ?? 0}
+            enviados={total - sinTerminar - fallidos - (conteos.omitido ?? 0)} />
+        </Card>
+      )}
+
       {(enviando || errorEnvio) && (
         <Card className="mb-6">
           {errorEnvio && <p className="mb-2 text-sm text-red-700">{errorEnvio}</p>}
           {progreso && <BarraProgreso {...progreso} />}
-          {enviando && <p className="mt-1 text-xs text-slate-400">Mantén esta ventana abierta mientras termina el envío.</p>}
+          {enviando && <p className="mt-1 text-xs text-slate-400">Si cierras esta ventana, el envío continúa en el servidor.</p>}
         </Card>
       )}
 
@@ -138,7 +170,7 @@ export default function Informe() {
               <XAxis dataKey="label" tick={{ fontSize: 12 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="valor" radius={[6, 6, 0, 0]}>
+              <Bar dataKey="valor" radius={[6, 6, 0, 0]} isAnimationActive={false}>
                 {dataChart.map((d) => <Cell key={d.key} fill={d.color} />)}
               </Bar>
             </BarChart>

@@ -81,9 +81,9 @@ export async function leerExcel(file: File): Promise<ResultadoImport> {
 // Plantilla de Excel de ejemplo para que el usuario sepa el formato
 export function descargarPlantillaEjemplo() {
   const ws = XLSX.utils.aoa_to_sheet([
-    ['email', 'nombre', 'cita', 'medico'],
-    ['paciente1@correo.com', 'Ana Pérez', '2026-07-05 09:00', 'Dr. Gómez'],
-    ['paciente2@correo.com', 'Luis Díaz', '2026-07-05 10:30', 'Dra. Ruiz'],
+    ['email', 'nombre', 'fecha', 'sede'],
+    ['persona1@correo.com', 'Ana Pérez', '05/07/2026', 'Norte'],
+    ['persona2@correo.com', 'Luis Díaz', '06/07/2026', 'Sur'],
   ])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'destinatarios')

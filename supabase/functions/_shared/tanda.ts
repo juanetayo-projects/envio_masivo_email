@@ -3,7 +3,7 @@
 // Garantía contra duplicados: cada lote usa su lote_id como Idempotency-Key en
 // Resend (24 h). Si una tanda se interrumpe, el lote se reintenta con la misma
 // clave y Resend responde lo mismo sin volver a enviar.
-import { fusionar, fusionarAsunto } from '../_shared/merge.ts'
+import { fusionar, fusionarAsunto } from './merge.ts'
 
 export type Envio = {
   id: string
@@ -12,7 +12,7 @@ export type Envio = {
   lote_id: string
 }
 
-export type Progreso = { total: number; enviados: number; fallidos: number; pendientes: number }
+export type Progreso = { total: number; enviados: number; fallidos: number; pendientes: number; omitidos?: number }
 
 export type Db = {
   reclamarLote: (limite: number) => Promise<Envio[]>
@@ -20,13 +20,14 @@ export type Db = {
   marcarFallido: (id: string, error: string) => Promise<void>
   liberar: (ids: string[]) => Promise<void>
   progreso: () => Promise<Progreso>
-  actualizarCampania: (cambios: { estado: 'enviada' | 'error'; enviada_at?: string }) => Promise<void>
+  actualizarCampania: (cambios: { estado: 'enviada' | 'error'; enviada_at?: string; error_detalle: string | null }) => Promise<void>
 }
 
 export type Tanda = {
   db: Db
   apiKey: string
   from: string
+  replyTo?: string | null
   asunto: string
   html: string
   adjuntos: { filename: string; path: string }[]
@@ -77,6 +78,7 @@ export async function procesarTanda(t: Tanda): Promise<ResultadoTanda> {
 
   const construir = (e: Envio) => ({
     from: t.from,
+    ...(t.replyTo ? { reply_to: t.replyTo } : {}),
     to: [e.email],
     subject: fusionarAsunto(t.asunto, e.datos),
     html: fusionar(t.html, e.datos),
@@ -154,13 +156,14 @@ export async function procesarTanda(t: Tanda): Promise<ResultadoTanda> {
 
   const progreso = await t.db.progreso()
   if (corte?.detenida) {
-    await t.db.actualizarCampania({ estado: 'error' })
+    await t.db.actualizarCampania({ estado: 'error', error_detalle: corte.detenida })
     return { ...progreso, terminado: false, detenida: corte.detenida }
   }
   if (progreso.pendientes === 0) {
     await t.db.actualizarCampania({
       estado: progreso.enviados === 0 && progreso.fallidos > 0 ? 'error' : 'enviada',
       enviada_at: new Date().toISOString(),
+      error_detalle: null,
     })
     return { ...progreso, terminado: true }
   }

@@ -82,18 +82,32 @@ export function Card({ children, className = '' }:
   )
 }
 
+// --- Tablas: encabezado oscuro y filas en cebra ---
+export function TableHead({ children }: { children: ReactNode }) {
+  return (
+    <thead className="bg-[#0D2D6B] text-left text-xs uppercase tracking-wide text-white">
+      <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-semibold">{children}</tr>
+    </thead>
+  )
+}
+export function filaZebra(indice: number) {
+  return `border-t border-slate-200 transition-colors hover:bg-blue-50 ${indice % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`
+}
+
 // --- Progreso de un envío en curso ---
-export function BarraProgreso({ total, enviados, fallidos, pendientes }:
-  { total: number; enviados: number; fallidos: number; pendientes: number }) {
-  const procesados = enviados + fallidos
+export function BarraProgreso({ total, enviados, fallidos, pendientes, omitidos = 0 }:
+  { total: number; enviados: number; fallidos: number; pendientes: number; omitidos?: number }) {
+  const procesados = enviados + fallidos + omitidos
   const pct = total ? Math.round((procesados / total) * 100) : 0
   return (
     <div>
-      <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+      <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}
+        className="h-3 overflow-hidden rounded-full bg-slate-200">
         <div className="h-full bg-[#16468E] transition-all" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-2 text-sm text-slate-600">
-        {pct}% · {enviados} enviados · {fallidos} fallidos · {pendientes} pendientes
+        {pct}% · {enviados} enviados · {fallidos} fallidos
+        {omitidos > 0 && ` · ${omitidos} omitidos`} · {pendientes} pendientes
       </p>
     </div>
   )

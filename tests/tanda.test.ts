@@ -2,8 +2,8 @@
 // que, como el real, no vuelve a enviar lo que recibe con la misma clave.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { procesarTanda, PRESUPUESTO_MS } from '../supabase/functions/enviar-campania/tanda.ts'
-import type { Db, Envio } from '../supabase/functions/enviar-campania/tanda.ts'
+import { procesarTanda, PRESUPUESTO_MS } from '../supabase/functions/_shared/tanda.ts'
+import type { Db, Envio } from '../supabase/functions/_shared/tanda.ts'
 
 type Fila = Envio & { estado: string; error?: string; intentos: number; resend_id?: string | null }
 

@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { PageHeader, Card, Boton, BarraProgreso } from '../components/ui'
+import { PageHeader, Card, Boton, BarraProgreso, Modal } from '../components/ui'
+import { revisarHtml } from '../lib/revisarHtml'
 import { leerExcel, descargarPlantillaEjemplo } from '../lib/excel'
 import type { ResultadoImport } from '../lib/excel'
 import { fusionar, fusionarAsunto, variablesFaltantes } from '../lib/merge'
-import { ejecutarEnvio } from '../lib/envioCampania'
+import { ejecutarEnvio, mensajeDeError } from '../lib/envioCampania'
 import type { Progreso } from '../lib/envioCampania'
+import { aplicarFiltro, dominioDe, valoresDeColumna, verificarDominios } from '../lib/destinatarios'
 import type { Plantilla } from './Plantillas'
 
 type Adjunto = { nombre: string; path: string; mime: string; size: number }
+type Remitente = { id: string; nombre: string; email: string; responder_a: string | null }
 const PASOS = ['Datos', 'Destinatarios (Excel)', 'Adjuntos', 'Revisión', 'Envío']
 
 export default function NuevaCampania() {
@@ -22,11 +25,22 @@ export default function NuevaCampania() {
   const [nombre, setNombre] = useState('')
   const [asunto, setAsunto] = useState('')
   const [plantillaId, setPlantillaId] = useState('')
+  const [remitentes, setRemitentes] = useState<Remitente[]>([])
+  const [remitenteId, setRemitenteId] = useState('')
+  const [remitenteNombre, setRemitenteNombre] = useState('')
+  const [responderA, setResponderA] = useState('')
 
   // Paso 2
   const [excel, setExcel] = useState<ResultadoImport | null>(null)
   const [excelNombre, setExcelNombre] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
+  const importacion = useRef(0)
+  const [revisando, setRevisando] = useState(false)
+  const [dominiosInexistentes, setDominiosInexistentes] = useState<Set<string>>(new Set())
+  const [dominiosSinVerificar, setDominiosSinVerificar] = useState(0)
+  const [bloqueados, setBloqueados] = useState<Map<string, string>>(new Map())
+  const [columnaFiltro, setColumnaFiltro] = useState('')
+  const [valoresFiltro, setValoresFiltro] = useState<Set<string>>(new Set())
 
   // Paso 3
   const [adjuntos, setAdjuntos] = useState<Adjunto[]>([])
@@ -41,12 +55,50 @@ export default function NuevaCampania() {
   const [campaniaCreada, setCampaniaCreada] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Paso 4
+  const [enviandoPrueba, setEnviandoPrueba] = useState(false)
+  const [avisoPrueba, setAvisoPrueba] = useState<{ ok: boolean; mensaje: string } | null>(null)
+
   useEffect(() => {
     supabase.from('plantillas').select('*').order('updated_at', { ascending: false })
       .then(({ data }) => setPlantillasList((data as Plantilla[]) ?? []))
+    supabase.from('remitentes').select('*').eq('activo', true).order('nombre')
+      .then(({ data }) => {
+        const lista = (data as Remitente[]) ?? []
+        setRemitentes(lista)
+        if (lista[0]) elegirRemitente(lista[0])
+      })
   }, [])
 
+  function elegirRemitente(r: Remitente) {
+    setRemitenteId(r.id); setRemitenteNombre(r.nombre); setResponderA(r.responder_a ?? '')
+  }
+
   const plantilla = plantillasList.find((p) => p.id === plantillaId)
+  const remitente = remitentes.find((r) => r.id === remitenteId)
+  const avisosHtml = useMemo(() => revisarHtml(plantilla?.html ?? ''), [plantilla])
+
+  const excluidos = useMemo(() => {
+    const lista: { email: string; razon: string }[] = []
+    for (const f of excel?.filas ?? []) {
+      const motivo = bloqueados.get(f.email.toLowerCase())
+      if (motivo) lista.push({ email: f.email, razon: `Lista de bloqueo (${motivo})` })
+      else if (dominiosInexistentes.has(dominioDe(f.email))) lista.push({ email: f.email, razon: 'El dominio no existe o no recibe correo' })
+    }
+    return lista
+  }, [excel, bloqueados, dominiosInexistentes])
+
+  const valoresColumna = useMemo(
+    () => (excel && columnaFiltro ? valoresDeColumna(excel.filas, columnaFiltro) : []),
+    [excel, columnaFiltro],
+  )
+
+  // Los destinatarios reales de la campaña: se usan en la revisión y en el envío.
+  const destinatarios = useMemo(() => {
+    const fuera = new Set(excluidos.map((x) => x.email))
+    return aplicarFiltro(excel?.filas ?? [], columnaFiltro, valoresFiltro).filter((f) => !fuera.has(f.email))
+  }, [excel, excluidos, columnaFiltro, valoresFiltro])
+
   const faltantes = useMemo(() => {
     if (!plantilla || !excel) return []
     const texto = plantilla.html + ' ' + asunto
@@ -56,9 +108,55 @@ export default function NuevaCampania() {
   async function onExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
+    e.target.value = ''   // permite volver a elegir el mismo archivo corregido
+    const turno = ++importacion.current
     setExcelNombre(f.name)
-    try { setExcel(await leerExcel(f)) }
-    catch { setError('No se pudo leer el archivo. ¿Es un .xlsx válido?') }
+    setError(null)
+    setColumnaFiltro(''); setValoresFiltro(new Set())
+    setBloqueados(new Map()); setDominiosInexistentes(new Set()); setDominiosSinVerificar(0)
+
+    let leido: ResultadoImport
+    try { leido = await leerExcel(f) }
+    catch { setExcel(null); setError('No se pudo leer el archivo. ¿Es un .xlsx válido?'); return }
+    setExcel(leido)
+    if (leido.filas.length === 0) return
+
+    setRevisando(true)
+    const [lista, dominios] = await Promise.all([
+      supabase.rpc('buscar_bloqueados', { p_emails: leido.filas.map((x) => x.email) }),
+      verificarDominios(leido.filas.map((x) => dominioDe(x.email))),
+    ])
+    if (turno !== importacion.current) return   // ya eligieron otro archivo
+
+    // Si esta consulta falla, el servidor igual omite los bloqueados al enviar.
+    if (lista.error) setError('No se pudo revisar la lista de bloqueo; se aplicará al enviar.')
+    setBloqueados(new Map(((lista.data ?? []) as { email: string; motivo: string }[]).map((b) => [b.email, b.motivo])))
+    const estados = Object.entries(dominios)
+    setDominiosInexistentes(new Set(estados.filter(([, v]) => v === 'inexistente').map(([d]) => d)))
+    setDominiosSinVerificar(estados.filter(([, v]) => v === 'desconocido').length)
+    setRevisando(false)
+  }
+
+  function cambiarValorFiltro(valor: string, activo: boolean) {
+    setValoresFiltro((actual) => {
+      const nuevo = new Set(actual)
+      if (activo) nuevo.add(valor)
+      else nuevo.delete(valor)
+      return nuevo
+    })
+  }
+
+  async function enviarPrueba() {
+    setEnviandoPrueba(true)
+    const { data, error: ep } = await supabase.functions.invoke('enviar-prueba', {
+      body: {
+        plantilla_id: plantillaId, asunto, datos: destinatarios[0]?.datos ?? {}, adjuntos,
+        remitente_id: remitenteId, remitente_nombre: remitenteNombre, responder_a: responderA,
+      },
+    })
+    setEnviandoPrueba(false)
+    if (ep) setAvisoPrueba({ ok: false, mensaje: await mensajeDeError(ep) })
+    else setAvisoPrueba({ ok: true, mensaje: `Enviamos la prueba a ${data.para}. Revisa también la carpeta de spam.` })
   }
 
   async function onAdjuntos(e: React.ChangeEvent<HTMLInputElement>) {
@@ -85,10 +183,15 @@ export default function NuevaCampania() {
   async function enviar() {
     if (!plantilla || !excel) return
     setEnviando(true); setError(null)
+    const total = destinatarios.length
+    setProgreso({ total, enviados: 0, fallidos: 0, pendientes: total })
     // tempId identifica la campaña: reintentar continúa la misma, nunca crea otra.
     const { error: ce } = await supabase.rpc('crear_campania', {
-      p_campania: { id: tempId, nombre, asunto, plantilla_id: plantillaId, adjuntos },
-      p_envios: excel.filas.map((f) => ({ email: f.email, datos: f.datos })),
+      p_campania: {
+        id: tempId, nombre, asunto, plantilla_id: plantillaId, adjuntos,
+        remitente_id: remitenteId, remitente_nombre: remitenteNombre, responder_a: responderA,
+      },
+      p_envios: destinatarios.map((f) => ({ email: f.email, datos: f.datos })),
     })
     if (ce) { setEnviando(false); setError('No se pudo crear la campaña: ' + ce.message); return }
     setCampaniaCreada(true)
@@ -103,14 +206,22 @@ export default function NuevaCampania() {
   }
 
   const puedeAvanzar = () => {
-    if (paso === 0) return nombre.trim() && asunto.trim() && plantillaId
-    if (paso === 1) return excel && excel.filas.length > 0
+    if (paso === 0) return nombre.trim() && asunto.trim() && plantillaId && remitenteId && remitenteNombre.trim()
+    if (paso === 1) return !revisando && destinatarios.length > 0
     return true
   }
 
   return (
     <div className="max-w-4xl">
       <PageHeader titulo="Nueva campaña" />
+
+      <Modal open={avisoPrueba !== null} onClose={() => setAvisoPrueba(null)}
+        titulo={avisoPrueba?.ok ? 'Prueba enviada' : 'No se pudo enviar la prueba'}>
+        <p className="text-sm text-slate-600">{avisoPrueba?.mensaje}</p>
+        <div className="mt-4 flex justify-end">
+          <Boton onClick={() => setAvisoPrueba(null)}>Cerrar</Boton>
+        </div>
+      </Modal>
 
       {/* Stepper */}
       <div className="mb-6 flex items-center gap-2 text-sm">
@@ -134,11 +245,11 @@ export default function NuevaCampania() {
           <div className="space-y-4">
             <Field label="Nombre de la campaña">
               <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={inputCls}
-                placeholder="Ej. Recordatorio citas julio" />
+                placeholder="Ej. Promoción de noviembre" />
             </Field>
             <Field label="Asunto del correo (admite variables {{...}})">
               <input value={asunto} onChange={(e) => setAsunto(e.target.value)} className={inputCls}
-                placeholder="Recordatorio de su cita, {{nombre}}" />
+                placeholder="Hola {{nombre}}, tenemos novedades" />
             </Field>
             <Field label="Plantilla">
               <select value={plantillaId} onChange={(e) => setPlantillaId(e.target.value)} className={inputCls}>
@@ -146,6 +257,23 @@ export default function NuevaCampania() {
                 {plantillasList.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.tipo})</option>)}
               </select>
             </Field>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Enviar desde">
+                <select value={remitenteId} className={inputCls} onChange={(e) => {
+                  const r = remitentes.find((x) => x.id === e.target.value)
+                  if (r) elegirRemitente(r)
+                }}>
+                  {remitentes.map((r) => <option key={r.id} value={r.id}>{r.email}</option>)}
+                </select>
+              </Field>
+              <Field label="Nombre visible del remitente">
+                <input value={remitenteNombre} onChange={(e) => setRemitenteNombre(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Responder a (opcional)">
+                <input value={responderA} onChange={(e) => setResponderA(e.target.value)} className={inputCls}
+                  placeholder="correo@ejemplo.com" />
+              </Field>
+            </div>
             {plantillasList.length === 0 && (
               <p className="text-sm text-amber-600">No hay plantillas. Crea una en la sección Plantillas.</p>
             )}
@@ -171,11 +299,45 @@ export default function NuevaCampania() {
             {excel && (
               <>
                 <div className="flex flex-wrap gap-4 text-sm">
-                  <Badge color="emerald">{excel.filas.length} válidos</Badge>
+                  <Badge color="emerald">{destinatarios.length} destinatarios</Badge>
+                  {revisando && <Badge color="slate">Verificando dominios y lista de bloqueo…</Badge>}
+                  {excluidos.length > 0 && <Badge color="amber">{excluidos.length} excluidos</Badge>}
+                  {dominiosSinVerificar > 0 && <Badge color="slate">{dominiosSinVerificar} dominios sin verificar</Badge>}
                   {excel.invalidas > 0 && <Badge color="amber">{excel.invalidas} sin email válido (descartados)</Badge>}
                   {excel.duplicados > 0 && <Badge color="amber">{excel.duplicados === 1 ? '1 correo repetido (descartado)' : `${excel.duplicados} correos repetidos (descartados)`}</Badge>}
                   <Badge color="slate">{excel.columnas.length} columnas</Badge>
                 </div>
+
+                {excluidos.length > 0 && (
+                  <details className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+                    <summary className="cursor-pointer font-medium">Ver correos excluidos ({excluidos.length})</summary>
+                    <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
+                      {excluidos.map((x) => <li key={x.email}><b>{x.email}</b>: {x.razon}</li>)}
+                    </ul>
+                  </details>
+                )}
+
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <Field label="Enviar solo a quienes cumplan (opcional)">
+                    <select value={columnaFiltro} className={inputCls}
+                      onChange={(e) => { setColumnaFiltro(e.target.value); setValoresFiltro(new Set()) }}>
+                      <option value="">— Todos los destinatarios —</option>
+                      {excel.columnas.slice(1).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                  {columnaFiltro && (
+                    <div className="mt-3 grid max-h-44 gap-1 overflow-auto text-sm sm:grid-cols-2">
+                      {valoresColumna.map((v) => (
+                        <label key={v} className="flex items-center gap-2 text-slate-700">
+                          <input type="checkbox" checked={valoresFiltro.has(v)}
+                            onChange={(e) => cambiarValorFiltro(v, e.target.checked)} />
+                          {v || '(vacío)'}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-left text-slate-600">
@@ -183,7 +345,7 @@ export default function NuevaCampania() {
                         <th key={c} className="px-3 py-2 font-medium">{c}{i === 0 && ' (email)'}</th>))}</tr>
                     </thead>
                     <tbody>
-                      {excel.filas.slice(0, 5).map((f, idx) => (
+                      {destinatarios.slice(0, 5).map((f, idx) => (
                         <tr key={idx} className="border-t border-slate-100">
                           {excel.columnas.map((c) => <td key={c} className="px-3 py-2">{String(f.datos[c] ?? '')}</td>)}
                         </tr>
@@ -191,7 +353,7 @@ export default function NuevaCampania() {
                     </tbody>
                   </table>
                 </div>
-                {excel.filas.length > 5 && <p className="text-xs text-slate-400">Mostrando 5 de {excel.filas.length}.</p>}
+                {destinatarios.length > 5 && <p className="text-xs text-slate-400">Mostrando 5 de {destinatarios.length}.</p>}
               </>
             )}
           </div>
@@ -219,29 +381,41 @@ export default function NuevaCampania() {
         )}
 
         {/* PASO 4 — Revisión */}
-        {paso === 3 && plantilla && excel && (
+        {paso === 3 && plantilla && destinatarios.length > 0 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <Info label="Campaña" valor={nombre} />
               <Info label="Plantilla" valor={`${plantilla.nombre} (${plantilla.tipo})`} />
-              <Info label="Destinatarios" valor={String(excel.filas.length)} />
+              <Info label="Remitente" valor={`${remitenteNombre} <${remitente?.email ?? ''}>`} />
+              {responderA.trim() && <Info label="Responder a" valor={responderA.trim()} />}
+              <Info label="Destinatarios" valor={String(destinatarios.length)} />
               <Info label="Adjuntos" valor={adjuntos.length ? adjuntos.map((a) => a.nombre).join(', ') : 'Ninguno'} />
             </div>
+            {avisosHtml.length > 0 && (
+              <ul className="list-disc space-y-1 rounded-lg bg-amber-50 py-2 pl-8 pr-4 text-sm text-amber-700">
+                {avisosHtml.map((a) => <li key={a}>{a}</li>)}
+              </ul>
+            )}
             {faltantes.length > 0 && (
               <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-700">
                 ⚠️ Variables sin columna en el Excel (se enviarán vacías): {faltantes.map((v) => `{{${v}}}`).join(', ')}
               </p>
             )}
             <div>
-              <p className="mb-2 text-sm font-medium text-slate-700">
-                Vista previa con el primer destinatario ({excel.filas[0].email}):
-              </p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-slate-700">
+                  Vista previa con el primer destinatario ({destinatarios[0].email}):
+                </p>
+                <Boton variante="secundario" onClick={enviarPrueba} disabled={enviandoPrueba}>
+                  {enviandoPrueba ? 'Enviando prueba…' : '📨 Enviarme una prueba'}
+                </Boton>
+              </div>
               <div className="rounded-lg border border-slate-200 bg-white p-1">
                 <div className="border-b border-slate-100 px-3 py-2 text-sm">
-                  <b>Asunto:</b> {fusionarAsunto(asunto, excel.filas[0].datos)}
+                  <b>Asunto:</b> {fusionarAsunto(asunto, destinatarios[0].datos)}
                 </div>
-                <iframe title="preview" className="h-80 w-full"
-                  srcDoc={fusionar(plantilla.html, excel.filas[0].datos)} />
+                <iframe sandbox="" title="preview" className="h-80 w-full"
+                  srcDoc={fusionar(plantilla.html, destinatarios[0].datos)} />
               </div>
             </div>
           </div>
@@ -253,8 +427,8 @@ export default function NuevaCampania() {
             {!resultado ? (
               <>
                 <p className="text-slate-600">
-                  Vas a enviar la campaña <b>{nombre}</b> a <b>{excel?.filas.length}</b> destinatarios
-                  desde <b>notificaciones@cacsantabarbara.co</b>.
+                  Vas a enviar la campaña <b>{nombre}</b> a <b>{destinatarios.length}</b> destinatarios
+                  desde <b>{remitente?.email}</b>.
                 </p>
                 <Boton onClick={enviar} disabled={enviando}>
                   {enviando ? 'Enviando…' : campaniaCreada ? '↻ Continuar envío' : '🚀 Enviar campaña ahora'}
@@ -262,7 +436,7 @@ export default function NuevaCampania() {
                 {progreso && <div className="text-left"><BarraProgreso {...progreso} /></div>}
                 {enviando && (
                   <p className="text-sm text-slate-400">
-                    Mantén esta ventana abierta. Si se cierra, el envío se pausa y puedes continuarlo desde el informe.
+                    Si cierras esta ventana, el envío continúa en el servidor. Puedes seguirlo en el informe de la campaña.
                   </p>
                 )}
                 {campaniaCreada && !enviando && (
@@ -276,8 +450,10 @@ export default function NuevaCampania() {
               <div className="space-y-3">
                 <p className="text-2xl">✅</p>
                 <p className="text-lg font-medium text-slate-800">Campaña enviada</p>
+                <div className="text-left"><BarraProgreso {...resultado} /></div>
                 <p className="text-sm text-slate-600">
                   {resultado.enviados} enviados · {resultado.fallidos} fallidos
+                  {!!resultado.omitidos && ` · ${resultado.omitidos} omitidos por lista de bloqueo`}
                 </p>
                 <Boton onClick={() => navigate(`/campanias/${tempId}/informe`)}>Ver informe</Boton>
               </div>

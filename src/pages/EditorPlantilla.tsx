@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { PageHeader, Boton, Card } from '../components/ui'
 import RichText from '../components/RichText'
+import { revisarHtml } from '../lib/revisarHtml'
 
 type Tipo = 'visual' | 'texto' | 'html'
 
@@ -155,6 +156,11 @@ export default function EditorPlantilla() {
       <div style={{ display: tipo === 'texto' ? 'block' : 'none' }}>
         <RichText value={htmlTexto} onChange={setHtmlTexto} variables={VARIABLES_SUGERIDAS} />
       </div>
+      {tipo === 'html' && revisarHtml(htmlTexto).length > 0 && (
+        <ul className="mb-3 list-disc space-y-1 rounded-lg bg-amber-50 py-2 pl-8 pr-4 text-sm text-amber-700">
+          {revisarHtml(htmlTexto).map((a) => <li key={a}>{a}</li>)}
+        </ul>
+      )}
       {tipo === 'html' && (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <div>
@@ -166,7 +172,7 @@ export default function EditorPlantilla() {
           </div>
           <div>
             <p className="mb-1 text-xs font-medium text-slate-500">Vista previa</p>
-            <iframe title="preview-html" srcDoc={htmlTexto}
+            <iframe sandbox="" title="preview-html" srcDoc={htmlTexto}
               className="h-[calc(100vh-260px)] min-h-[360px] w-full rounded-lg border border-slate-300 bg-white" />
           </div>
         </div>
