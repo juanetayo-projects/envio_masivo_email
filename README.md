@@ -38,6 +38,23 @@ Para el envío y el tracking, configurar en el panel de Supabase
 El webhook de Resend debe apuntar a:
 `https://<ref>.supabase.co/functions/v1/resend-webhook`
 
+## Cómo funciona el envío
+
+`enviar-campania` procesa una tanda de ~90 s y responde; la app vuelve a llamarla
+hasta terminar. Si se cierra la ventana, el envío se pausa y se continúa desde el
+informe de la campaña.
+
+Repetir una llamada no duplica correos: cada lote usa su `lote_id` como
+`Idempotency-Key` de Resend (válida 24 h) y un bloqueo impide dos tandas simultáneas
+de la misma campaña. Los errores temporales se reintentan solos; los definitivos
+quedan como `fallido` y se reintentan con el botón del informe.
+
+## Pruebas
+
+```bash
+npm test
+```
+
 ## Despliegue
 
 Automático a GitHub Pages vía GitHub Actions al hacer push a `main`.

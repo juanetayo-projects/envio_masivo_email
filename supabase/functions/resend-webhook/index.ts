@@ -8,7 +8,7 @@ const json = (s: number, b: unknown) =>
 
 // Prioridad de estados para no "retroceder" (delivered -> opened -> clicked)
 const PRIORIDAD: Record<string, number> = {
-  pendiente: 0, enviado: 1, entregado: 2, abierto: 3, clic: 4,
+  pendiente: 0, enviando: 0, enviado: 1, entregado: 2, abierto: 3, clic: 4,
 }
 // Mapeo evento Resend -> { estado, campo timestamp }
 const MAP: Record<string, { estado: string; campo?: string }> = {
@@ -41,7 +41,8 @@ Deno.serve(async (req) => {
 
   const tipo: string = evt.type
   const emailId: string | undefined = evt.data?.email_id
-  const refId: string | undefined = evt.data?.headers?.['X-Entity-Ref-ID']
+  // El evento puede llegar antes de guardar resend_id; por eso el envío viaja en tags.
+  const refId: string | undefined = evt.data?.tags?.envio_id
   const mapeo = MAP[tipo]
   if (!mapeo) return json(200, { ok: true, ignorado: tipo })
 
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Localizar el envío por resend_id (email_id) o por X-Entity-Ref-ID
+  // Localizar el envío por resend_id (email_id) o por la tag envio_id
   let envio: any = null
   if (emailId) {
     const { data } = await admin.from('envios').select('id, estado').eq('resend_id', emailId).maybeSingle()

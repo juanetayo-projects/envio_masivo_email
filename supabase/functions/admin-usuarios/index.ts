@@ -28,8 +28,8 @@ Deno.serve(async (req) => {
 
   // 2) verificar rol admin
   const { data: perfil } = await admin
-    .from('profiles').select('rol').eq('id', user.id).single()
-  if (perfil?.rol !== 'admin') return json(403, { error: 'Solo admin' })
+    .from('profiles').select('rol, activo').eq('id', user.id).single()
+  if (perfil?.rol !== 'admin' || !perfil.activo) return json(403, { error: 'Solo admin' })
 
   // 3) ejecutar la acción
   let body: any = {}

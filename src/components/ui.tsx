@@ -82,6 +82,23 @@ export function Card({ children, className = '' }:
   )
 }
 
+// --- Progreso de un envío en curso ---
+export function BarraProgreso({ total, enviados, fallidos, pendientes }:
+  { total: number; enviados: number; fallidos: number; pendientes: number }) {
+  const procesados = enviados + fallidos
+  const pct = total ? Math.round((procesados / total) * 100) : 0
+  return (
+    <div>
+      <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+        <div className="h-full bg-[#16468E] transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-2 text-sm text-slate-600">
+        {pct}% · {enviados} enviados · {fallidos} fallidos · {pendientes} pendientes
+      </p>
+    </div>
+  )
+}
+
 // --- Logo institucional (respeta base de Vite) ---
 export function Logo({ blanco = false, className = '' }:
   { blanco?: boolean; className?: string }) {

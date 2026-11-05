@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { supabase } from '../lib/supabase'
-import { PageHeader, Card, MetricCard, Boton } from '../components/ui'
+import { PageHeader, Card, MetricCard, Boton, Modal, BarraProgreso } from '../components/ui'
 import { exportarEnviosExcel } from '../lib/exportar'
 import { fechaHora } from '../lib/fecha'
+import { ejecutarEnvio } from '../lib/envioCampania'
+import type { Progreso } from '../lib/envioCampania'
 
 type Envio = {
   id: string; email: string; estado: string
@@ -20,6 +22,7 @@ const ESTADOS = [
   { key: 'rebote', label: 'Rebotes', color: '#F59E0B' },
   { key: 'fallido', label: 'Fallidos', color: '#DC2626' },
   { key: 'pendiente', label: 'Pendientes', color: '#94A3B8' },
+  { key: 'enviando', label: 'En proceso', color: '#64748B' },
 ]
 
 export default function Informe() {
@@ -30,6 +33,23 @@ export default function Informe() {
   const [cargando, setCargando] = useState(true)
   const [filtro, setFiltro] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [progreso, setProgreso] = useState<Progreso | null>(null)
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
+  const [confirmar, setConfirmar] = useState<'continuar' | 'reintentar' | null>(null)
+
+  async function reanudar(reintentarFallidos: boolean) {
+    if (!id) return
+    setConfirmar(null); setEnviando(true); setErrorEnvio(null); setProgreso(null)
+    try {
+      await ejecutarEnvio(id, setProgreso, { reintentarFallidos })
+    } catch (e) {
+      setErrorEnvio(e instanceof Error ? e.message : 'Error al enviar')
+    } finally {
+      setEnviando(false)
+      await cargar()
+    }
+  }
 
   async function cargar() {
     const { data: c } = await supabase.from('campanias').select('*').eq('id', id).single()
@@ -47,6 +67,8 @@ export default function Informe() {
   }, [envios])
 
   const total = envios.length
+  const sinTerminar = (conteos.pendiente ?? 0) + (conteos.enviando ?? 0)
+  const fallidos = conteos.fallido ?? 0
   // Entregados/abiertos/clics son acumulativos en el embudo
   const entregadosOMas = (conteos.entregado ?? 0) + (conteos.abierto ?? 0) + (conteos.clic ?? 0)
   const abiertosOMas = (conteos.abierto ?? 0) + (conteos.clic ?? 0)
@@ -67,9 +89,37 @@ export default function Informe() {
         <>
           <Boton variante="secundario" onClick={() => navigate('/campanias')}>Volver</Boton>
           <Boton variante="secundario" onClick={cargar}>↻ Actualizar</Boton>
+          {sinTerminar > 0 && (
+            <Boton onClick={() => setConfirmar('continuar')} disabled={enviando}>▶ Continuar envío ({sinTerminar})</Boton>
+          )}
+          {fallidos > 0 && (
+            <Boton onClick={() => setConfirmar('reintentar')} disabled={enviando}>↻ Reintentar fallidos ({fallidos})</Boton>
+          )}
           <Boton onClick={() => exportarEnviosExcel(campania.nombre, filtrados)}>Exportar Excel</Boton>
         </>
       } />
+
+      <Modal open={confirmar !== null} onClose={() => setConfirmar(null)}
+        titulo={confirmar === 'reintentar' ? 'Reintentar fallidos' : 'Continuar envío'}>
+        <p className="text-sm text-slate-600">
+          {confirmar === 'reintentar'
+            ? `Se volverá a intentar el envío a ${fallidos} destinatarios fallidos${sinTerminar ? ` y a ${sinTerminar} pendientes` : ''}.`
+            : `Se enviará a los ${sinTerminar} destinatarios pendientes.`}
+          {' '}Quienes ya recibieron el correo no lo recibirán de nuevo.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Boton variante="secundario" onClick={() => setConfirmar(null)}>Cancelar</Boton>
+          <Boton onClick={() => reanudar(confirmar === 'reintentar')}>Confirmar envío</Boton>
+        </div>
+      </Modal>
+
+      {(enviando || errorEnvio) && (
+        <Card className="mb-6">
+          {errorEnvio && <p className="mb-2 text-sm text-red-700">{errorEnvio}</p>}
+          {progreso && <BarraProgreso {...progreso} />}
+          {enviando && <p className="mt-1 text-xs text-slate-400">Mantén esta ventana abierta mientras termina el envío.</p>}
+        </Card>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard titulo="Destinatarios" valor={total} />

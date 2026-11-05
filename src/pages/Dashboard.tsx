@@ -11,7 +11,7 @@ export default function Dashboard() {
       const { count: campanias } = await supabase.from('campanias')
         .select('*', { count: 'exact', head: true }).eq('estado', 'enviada')
       const { data: envios } = await supabase.from('envios').select('estado')
-      const enviados = envios?.filter((e) => e.estado !== 'pendiente' && e.estado !== 'fallido').length ?? 0
+      const enviados = envios?.filter((e) => !['pendiente', 'enviando', 'fallido'].includes(e.estado)).length ?? 0
       const aperturas = envios?.filter((e) => e.estado === 'abierto' || e.estado === 'clic').length ?? 0
       const clics = envios?.filter((e) => e.estado === 'clic').length ?? 0
       setM({ campanias: campanias ?? 0, enviados, aperturas, clics })

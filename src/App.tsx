@@ -2,6 +2,8 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import type { ReactElement } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
+import { supabase } from './lib/supabase'
+import { Boton, Card } from './components/ui'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Reset from './pages/Reset'
@@ -17,10 +19,23 @@ const Usuarios = lazy(() => import('./pages/admin/Usuarios'))
 
 const Cargando = () => <div className="p-8 text-slate-400">Cargando…</div>
 
+function CuentaInactiva() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+      <Card className="max-w-md text-center">
+        <p className="font-medium text-slate-800">Tu usuario está desactivado</p>
+        <p className="mt-1 mb-4 text-sm text-slate-500">Contacta a un administrador para recuperar el acceso.</p>
+        <Boton variante="secundario" onClick={() => supabase.auth.signOut()}>Cerrar sesión</Boton>
+      </Card>
+    </div>
+  )
+}
+
 function Guard({ roles, children }: { roles?: Array<'admin' | 'editor'>; children: ReactElement }) {
   const { session, perfil, loading } = useAuth()
   if (loading) return <div className="p-8 text-slate-500">Cargando…</div>
   if (!session) return <Navigate to="/login" replace />
+  if (perfil && !perfil.activo) return <CuentaInactiva />
   if (roles && perfil && !roles.includes(perfil.rol)) return <Navigate to="/dashboard" replace />
   return children
 }

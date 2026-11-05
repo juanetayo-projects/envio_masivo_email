@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../lib/auth'
-import { PageHeader, Card, Boton } from '../components/ui'
+import { PageHeader, Card, Boton, BarraProgreso } from '../components/ui'
 import { leerExcel, descargarPlantillaEjemplo } from '../lib/excel'
 import type { ResultadoImport } from '../lib/excel'
-import { fusionar, variablesFaltantes } from '../lib/merge'
+import { fusionar, fusionarAsunto, variablesFaltantes } from '../lib/merge'
+import { ejecutarEnvio } from '../lib/envioCampania'
+import type { Progreso } from '../lib/envioCampania'
 import type { Plantilla } from './Plantillas'
 
 type Adjunto = { nombre: string; path: string; mime: string; size: number }
@@ -13,7 +14,6 @@ const PASOS = ['Datos', 'Destinatarios (Excel)', 'Adjuntos', 'Revisión', 'Enví
 
 export default function NuevaCampania() {
   const navigate = useNavigate()
-  const { session } = useAuth()
 
   const [paso, setPaso] = useState(0)
   const [plantillasList, setPlantillasList] = useState<Plantilla[]>([])
@@ -36,7 +36,9 @@ export default function NuevaCampania() {
 
   // Paso 5
   const [enviando, setEnviando] = useState(false)
-  const [resultado, setResultado] = useState<{ enviados: number; fallidos: number } | null>(null)
+  const [resultado, setResultado] = useState<Progreso | null>(null)
+  const [progreso, setProgreso] = useState<Progreso | null>(null)
+  const [campaniaCreada, setCampaniaCreada] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -83,28 +85,21 @@ export default function NuevaCampania() {
   async function enviar() {
     if (!plantilla || !excel) return
     setEnviando(true); setError(null)
-    // 1) crear campaña
-    const { data: camp, error: ce } = await supabase.from('campanias').insert({
-      nombre, asunto, plantilla_id: plantillaId,
-      adjuntos, total_destinatarios: excel.filas.length,
-      estado: 'borrador', created_by: session?.user.id ?? null,
-    }).select('id').single()
-    if (ce || !camp) { setEnviando(false); setError('No se pudo crear la campaña: ' + ce?.message); return }
-
-    // 2) crear envíos (lotes de 500 en insert)
-    const rows = excel.filas.map((f) => ({ campania_id: camp.id, email: f.email, datos: f.datos }))
-    for (let i = 0; i < rows.length; i += 500) {
-      const { error: ee } = await supabase.from('envios').insert(rows.slice(i, i + 500))
-      if (ee) { setEnviando(false); setError('Error creando envíos: ' + ee.message); return }
-    }
-
-    // 3) invocar envío
-    const { data, error: fe } = await supabase.functions.invoke('enviar-campania', {
-      body: { campania_id: camp.id },
+    // tempId identifica la campaña: reintentar continúa la misma, nunca crea otra.
+    const { error: ce } = await supabase.rpc('crear_campania', {
+      p_campania: { id: tempId, nombre, asunto, plantilla_id: plantillaId, adjuntos },
+      p_envios: excel.filas.map((f) => ({ email: f.email, datos: f.datos })),
     })
-    setEnviando(false)
-    if (fe || data?.error) { setError(data?.error ?? fe?.message ?? 'Error al enviar'); return }
-    setResultado({ enviados: data.enviados, fallidos: data.fallidos })
+    if (ce) { setEnviando(false); setError('No se pudo crear la campaña: ' + ce.message); return }
+    setCampaniaCreada(true)
+
+    try {
+      setResultado(await ejecutarEnvio(tempId, setProgreso))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al enviar')
+    } finally {
+      setEnviando(false)
+    }
   }
 
   const puedeAvanzar = () => {
@@ -178,6 +173,7 @@ export default function NuevaCampania() {
                 <div className="flex flex-wrap gap-4 text-sm">
                   <Badge color="emerald">{excel.filas.length} válidos</Badge>
                   {excel.invalidas > 0 && <Badge color="amber">{excel.invalidas} sin email válido (descartados)</Badge>}
+                  {excel.duplicados > 0 && <Badge color="amber">{excel.duplicados} correos repetidos (descartados)</Badge>}
                   <Badge color="slate">{excel.columnas.length} columnas</Badge>
                 </div>
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -242,7 +238,7 @@ export default function NuevaCampania() {
               </p>
               <div className="rounded-lg border border-slate-200 bg-white p-1">
                 <div className="border-b border-slate-100 px-3 py-2 text-sm">
-                  <b>Asunto:</b> {fusionar(asunto, excel.filas[0].datos)}
+                  <b>Asunto:</b> {fusionarAsunto(asunto, excel.filas[0].datos)}
                 </div>
                 <iframe title="preview" className="h-80 w-full"
                   srcDoc={fusionar(plantilla.html, excel.filas[0].datos)} />
@@ -261,9 +257,20 @@ export default function NuevaCampania() {
                   desde <b>notificaciones@cacsantabarbara.co</b>.
                 </p>
                 <Boton onClick={enviar} disabled={enviando}>
-                  {enviando ? 'Enviando…' : '🚀 Enviar campaña ahora'}
+                  {enviando ? 'Enviando…' : campaniaCreada ? '↻ Continuar envío' : '🚀 Enviar campaña ahora'}
                 </Boton>
-                {enviando && <p className="text-sm text-slate-400">Procesando lotes, no cierres la ventana…</p>}
+                {progreso && <div className="text-left"><BarraProgreso {...progreso} /></div>}
+                {enviando && (
+                  <p className="text-sm text-slate-400">
+                    Mantén esta ventana abierta. Si se cierra, el envío se pausa y puedes continuarlo desde el informe.
+                  </p>
+                )}
+                {campaniaCreada && !enviando && (
+                  <button onClick={() => navigate(`/campanias/${tempId}/informe`)}
+                    className="block w-full text-sm text-[#16468E] hover:underline">
+                    Ver informe de la campaña
+                  </button>
+                )}
               </>
             ) : (
               <div className="space-y-3">
@@ -272,7 +279,7 @@ export default function NuevaCampania() {
                 <p className="text-sm text-slate-600">
                   {resultado.enviados} enviados · {resultado.fallidos} fallidos
                 </p>
-                <Boton onClick={() => navigate('/campanias')}>Ver campañas</Boton>
+                <Boton onClick={() => navigate(`/campanias/${tempId}/informe`)}>Ver informe</Boton>
               </div>
             )}
           </div>
@@ -280,7 +287,7 @@ export default function NuevaCampania() {
       </Card>
 
       {/* Navegación */}
-      {!resultado && (
+      {!resultado && !campaniaCreada && (
         <div className="mt-4 flex justify-between">
           <Boton variante="secundario" onClick={() => setPaso((p) => Math.max(0, p - 1))} disabled={paso === 0}>
             ← Atrás
