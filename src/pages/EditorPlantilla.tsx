@@ -5,7 +5,8 @@ import type { UnlayerRef } from '../components/UnlayerEditor'
 import { saveAs } from 'file-saver'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { PageHeader, Boton, Card } from '../components/ui'
+import { PageHeader, Boton, Card, Modal } from '../components/ui'
+import GaleriaImagenes from '../components/GaleriaImagenes'
 import RichText from '../components/RichText'
 import { revisarHtml } from '../lib/revisarHtml'
 
@@ -26,6 +27,7 @@ export default function EditorPlantilla() {
   const [cargando, setCargando] = useState(!esNuevo)
   const [guardando, setGuardando] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [verImagenes, setVerImagenes] = useState(false)
 
   const unlayerRef = useRef<UnlayerRef | null>(null)
   const designPendiente = useRef<unknown>(null)
@@ -114,11 +116,19 @@ export default function EditorPlantilla() {
       <PageHeader titulo={esNuevo ? 'Nueva plantilla' : 'Editar plantilla'} acciones={
         <>
           <Boton variante="secundario" onClick={() => navigate('/plantillas')}>Volver</Boton>
+          <Boton variante="secundario" onClick={() => setVerImagenes(true)}>🖼️ Imágenes</Boton>
           <Boton variante="secundario" onClick={copiarHtml}>Copiar HTML</Boton>
           <Boton variante="secundario" onClick={exportarHtml}>Exportar .html</Boton>
           <Boton onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
         </>
       } />
+
+      <Modal open={verImagenes} onClose={() => setVerImagenes(false)} titulo="Imágenes para la plantilla">
+        <div className="max-h-[70vh] overflow-auto"><GaleriaImagenes /></div>
+        <div className="mt-4 flex justify-end">
+          <Boton variante="secundario" onClick={() => setVerImagenes(false)}>Cerrar</Boton>
+        </div>
+      </Modal>
 
       {msg && <p className="mb-3 rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700">{msg}</p>}
 

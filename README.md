@@ -55,6 +55,13 @@ quedan como `fallido` y se reintentan con el botón del informe.
 Cada correo de campaña lleva `List-Unsubscribe` y un enlace de baja (`{{enlace_baja}}`
 o un pie automático), salvo que la campaña lo desactive. La baja entra a la lista de bloqueo.
 
+## Imágenes de plantillas
+
+La función `imagenes` sube cada archivo a `public/images/correos` del repositorio con un commit, y
+GitHub Pages lo publica tras el despliegue (1 o 2 minutos). Requiere el secret
+`GITHUB_IMAGENES_TOKEN`: un token de GitHub de grano fino, limitado a este repositorio, con permiso
+Contents de lectura y escritura. Como esos commits llegan a `main`, haz `git pull` antes de trabajar localmente.
+
 ## Retención de datos
 
 Los datos personales de cada campaña se conservan 12 meses. Después, la función `retencion`

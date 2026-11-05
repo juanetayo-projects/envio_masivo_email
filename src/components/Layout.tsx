@@ -6,6 +6,7 @@ import { Logo } from './ui'
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
   { to: '/plantillas', label: 'Plantillas', icon: '🎨' },
+  { to: '/imagenes', label: 'Imágenes', icon: '🖼️' },
   { to: '/campanias/nueva', label: 'Nueva campaña', icon: '✉️' },
   { to: '/campanias', label: 'Campañas', icon: '📨' },
   { to: '/bloqueados', label: 'Lista de bloqueo', icon: '🚫' },
