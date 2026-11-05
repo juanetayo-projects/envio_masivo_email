@@ -173,7 +173,7 @@ export default function NuevaCampania() {
                 <div className="flex flex-wrap gap-4 text-sm">
                   <Badge color="emerald">{excel.filas.length} válidos</Badge>
                   {excel.invalidas > 0 && <Badge color="amber">{excel.invalidas} sin email válido (descartados)</Badge>}
-                  {excel.duplicados > 0 && <Badge color="amber">{excel.duplicados} correos repetidos (descartados)</Badge>}
+                  {excel.duplicados > 0 && <Badge color="amber">{excel.duplicados === 1 ? '1 correo repetido (descartado)' : `${excel.duplicados} correos repetidos (descartados)`}</Badge>}
                   <Badge color="slate">{excel.columnas.length} columnas</Badge>
                 </div>
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
