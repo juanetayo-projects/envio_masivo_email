@@ -8,6 +8,7 @@
      El tono está validado contra las series de las gráficas. */
   --color-panel: #E3EBF6;
   --color-panel-borde: #C9D6E8;
+  --color-borde-fuerte: #0A2558;
   --color-panel-texto: #0F172A;
   --color-panel-suave: #475569;
 }

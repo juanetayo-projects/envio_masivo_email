@@ -203,7 +203,7 @@ export default function Dashboard() {
           { t: 'Pendientes', v: m?.pendientes },
           { t: campania || remitente ? 'Bajas (todas las campañas)' : 'Bajas', v: m?.bajas },
         ].map((x) => (
-          <div key={x.t} className="flex items-center justify-between gap-3 rounded-xl border border-panel-borde bg-panel px-4 py-2.5 shadow-sm">
+          <div key={x.t} className="flex items-center justify-between gap-3 rounded-xl border-2 border-borde-fuerte bg-panel px-4 py-2.5 shadow-sm">
             <span className="text-panel-suave">{x.t}</span>
             <span className="text-lg font-semibold text-panel-texto">{valor(x.v)}</span>
           </div>
@@ -277,7 +277,7 @@ export default function Dashboard() {
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
         <Panel className="xl:col-span-2" titulo="Últimas campañas del periodo" descripcion="Abre una fila para ver su informe">
-          <div className="overflow-x-auto rounded-lg border border-panel-borde bg-white">
+          <div className="overflow-x-auto rounded-lg border-2 border-borde-fuerte bg-white">
             <table className="w-full text-sm">
               <TableHead>
                 <th>Campaña</th><th className="text-right">Enviados</th><th className="text-right">Entrega</th>
@@ -303,7 +303,7 @@ export default function Dashboard() {
         </Panel>
 
         <Panel titulo="Principales dominios" descripcion="Por correos enviados">
-          <div className="overflow-x-auto rounded-lg border border-panel-borde bg-white">
+          <div className="overflow-x-auto rounded-lg border-2 border-borde-fuerte bg-white">
             <table className="w-full text-sm">
               <TableHead><th>Dominio</th><th className="text-right">Enviados</th><th className="text-right">Rebote</th></TableHead>
               <tbody>

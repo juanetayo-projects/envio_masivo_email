@@ -5,7 +5,7 @@ export function MetricCard({
   titulo, valor, icono, sub, porcentaje,
 }: { titulo: string; valor: ReactNode; icono?: ReactNode; sub?: string; porcentaje?: number }) {
   return (
-    <div className="rounded-2xl p-5 text-white shadow-md
+    <div className="rounded-2xl border-2 border-borde-fuerte p-5 text-white shadow-md
                     bg-gradient-to-br from-[#0D2D6B] to-[#16468E]">
       <div className="flex items-center justify-between">
         <span className="text-sm/5 opacity-80">{titulo}</span>
@@ -37,7 +37,7 @@ export function PageHeader({ titulo, acciones }:
 export function FilterBar({ children }: { children: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl
-                    border border-slate-200 bg-white p-4 shadow-sm">
+                    border-2 border-borde-fuerte bg-white p-4 shadow-sm">
       {children}
     </div>
   )
@@ -81,7 +81,7 @@ export function Boton({ children, variante = 'primario', ...props }:
 export function Card({ children, className = '' }:
   { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+    <div className={`rounded-2xl border-2 border-borde-fuerte bg-white p-5 shadow-sm ${className}`}>
       {children}
     </div>
   )
@@ -97,7 +97,7 @@ export function Panel({ titulo, descripcion, accion, className = '', cuerpoClass
   children: ReactNode
 }) {
   return (
-    <section className={`flex min-w-0 flex-col rounded-2xl border border-panel-borde bg-panel text-panel-texto shadow-sm ${className}`}>
+    <section className={`flex min-w-0 flex-col rounded-2xl border-2 border-borde-fuerte bg-panel text-panel-texto shadow-sm ${className}`}>
       {(titulo || accion) && (
         <header className="flex flex-wrap items-start justify-between gap-2 px-5 pt-4">
           <div className="min-w-0">

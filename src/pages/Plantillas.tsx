@@ -114,7 +114,7 @@ export default function Plantillas() {
               </p>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {PLANTILLAS_PREDISENADAS.map((pp) => (
-                  <div key={pp.id} className="flex flex-col overflow-hidden rounded-xl border border-slate-200">
+                  <div key={pp.id} className="flex flex-col overflow-hidden rounded-xl border-2 border-borde-fuerte">
                     <iframe sandbox="" title={pp.nombre} srcDoc={pp.html}
                       className="h-48 w-full border-b border-slate-100 bg-white" />
                     <div className="flex flex-1 flex-col p-4">

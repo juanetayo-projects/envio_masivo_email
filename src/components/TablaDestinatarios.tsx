@@ -64,7 +64,7 @@ export default function TablaDestinatarios({
         <Boton onClick={() => abrir('Agregar destinatario', null, null)}>+ Agregar destinatario</Boton>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <div className="overflow-x-auto rounded-lg border-2 border-borde-fuerte">
         <table className="w-full text-sm">
           <TableHead>
             {columnas.map((c, i) => <th key={c}>{c}{i === 0 && ' (correo)'}</th>)}

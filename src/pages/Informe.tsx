@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { PageHeader, Card, MetricCard, Boton, Modal, BarraProgreso } from '../components/ui'
 import { exportarEnviosExcel } from '../lib/exportar'
 import { fechaHora } from '../lib/fecha'
 import { ejecutarEnvio } from '../lib/envioCampania'
 import type { Progreso } from '../lib/envioCampania'
+import { ETAPAS, alcanzoEtapa, contarEtapas } from '../lib/etapas'
 
 type Envio = {
   id: string; email: string; estado: string
@@ -19,18 +20,6 @@ type Campania = {
 
 const REFRESCO_MS = 10_000
 const TAMANO_PAGINA = 1000
-
-const ESTADOS = [
-  { key: 'enviado', label: 'Enviados', color: '#16468E' },
-  { key: 'entregado', label: 'Entregados', color: '#0D9488' },
-  { key: 'abierto', label: 'Abiertos', color: '#7C3AED' },
-  { key: 'clic', label: 'Clics', color: '#DB2777' },
-  { key: 'rebote', label: 'Rebotes', color: '#F59E0B' },
-  { key: 'fallido', label: 'Fallidos', color: '#DC2626' },
-  { key: 'pendiente', label: 'Pendientes', color: '#94A3B8' },
-  { key: 'enviando', label: 'En proceso', color: '#64748B' },
-  { key: 'omitido', label: 'Omitidos (lista de bloqueo)', color: '#475569' },
-]
 
 export default function Informe() {
   const { id } = useParams()
@@ -98,10 +87,10 @@ export default function Informe() {
   const salieron = total - sinTerminar - fallidos - (conteos.omitido ?? 0)
   const pct = (n: number) => salieron ? `${Math.round((n / salieron) * 100)}% de lo enviado` : '—'
 
-  const dataChart = ESTADOS.map((s) => ({ ...s, valor: conteos[s.key] ?? 0 })).filter((d) => d.valor > 0)
+  const dataChart = useMemo(() => contarEtapas(envios.map((e) => e.estado)), [envios])
 
   const filtrados = envios.filter((e) =>
-    (!estadoFiltro || e.estado === estadoFiltro) &&
+    (!estadoFiltro || alcanzoEtapa(e.estado, estadoFiltro)) &&
     (!filtro || e.email.toLowerCase().includes(filtro.toLowerCase())))
 
   if (cargando) return <p className="text-slate-400">Cargando…</p>
@@ -171,62 +160,65 @@ export default function Informe() {
         <MetricCard titulo="Rebotes" valor={conteos.rebote ?? 0} sub={pct(conteos.rebote ?? 0)} />
       </div>
 
-      <Card className="mb-6">
-        <h3 className="mb-3 text-sm font-medium text-slate-600">Distribución por estado</h3>
-        {dataChart.length === 0 ? (
-          <p className="text-sm text-slate-400">Sin datos aún.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={dataChart}>
-              <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="valor" radius={[6, 6, 0, 0]} isAnimationActive={false}>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
+        <Card className="min-w-0">
+          <h3 className="text-sm font-medium text-slate-600">Recorrido de los correos</h3>
+          <p className="mb-3 text-xs text-slate-400">
+            Cada correo cuenta en todas las etapas que alcanzó: el que recibió un clic también se entregó y se abrió.
+          </p>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={dataChart} layout="vertical" margin={{ top: 0, right: 28, bottom: 0, left: 0 }}>
+              <XAxis type="number" hide allowDecimals={false} domain={[0, 'dataMax']} />
+              <YAxis type="category" dataKey="label" width={84} interval={0} axisLine={false} tickLine={false}
+                tick={{ fontSize: 12, fill: '#475569' }} />
+              {/* minPointSize: Recharts no rotula las barras de ancho 0, y aquí debe verse el "0". */}
+              <Bar dataKey="valor" barSize={16} radius={[0, 4, 4, 0]} minPointSize={0.01} isAnimationActive={false}>
                 {dataChart.map((d) => <Cell key={d.key} fill={d.color} />)}
+                <LabelList dataKey="valor" position="right" style={{ fontSize: 12, fill: '#334155' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        )}
-      </Card>
+        </Card>
 
-      <Card className="p-0">
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4">
-          <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar correo…"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#16468E]" />
-          <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="">Todos los estados</option>
-            {ESTADOS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-          <span className="text-sm text-slate-400">{filtrados.length} de {total}</span>
-        </div>
-        <div className="max-h-[420px] overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-slate-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Correo</th>
-                <th className="px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3 font-medium">Enviado</th>
-                <th className="px-4 py-3 font-medium">Error</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtrados.map((e) => (
-                <tr key={e.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">{e.email}</td>
-                  <td className="px-4 py-2">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{e.estado}</span>
-                  </td>
-                  <td className="px-4 py-2 text-slate-500">
-                    {fechaHora(e.enviado_at)}
-                  </td>
-                  <td className="px-4 py-2 text-red-600">{e.error ?? ''}</td>
+        <Card className="min-w-0 p-0">
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4">
+            <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar correo…"
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#16468E]" />
+            <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">Todos los estados</option>
+              {ETAPAS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+            <span className="text-sm text-slate-400">{filtrados.length} de {total}</span>
+          </div>
+          <div className="max-h-[340px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-left text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Correo</th>
+                  <th className="px-4 py-3 font-medium">Estado</th>
+                  <th className="px-4 py-3 font-medium">Enviado</th>
+                  <th className="px-4 py-3 font-medium">Error</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody>
+                {filtrados.map((e) => (
+                  <tr key={e.id} className="border-t border-slate-100">
+                    <td className="px-4 py-2">{e.email}</td>
+                    <td className="px-4 py-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{e.estado}</span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">
+                      {fechaHora(e.enviado_at)}
+                    </td>
+                    <td className="px-4 py-2 text-red-600">{e.error ?? ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
     </div>
   )
 }
