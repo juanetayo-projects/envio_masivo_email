@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Boton, Modal, TableHead, filaZebra } from './ui'
 import type { FilaDestinatario } from '../lib/excel'
+import type { CampoFormulario } from '../lib/destinatarios'
 
 const POR_PAGINA = 10
 const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#16468E] focus:ring-1 focus:ring-[#16468E]'
@@ -10,6 +11,7 @@ type Formulario = { titulo: string; original: string | null; indiceDescartada: n
 type Props = {
   filas: FilaDestinatario[]                // ya filtradas por columna
   columnas: string[]
+  campos: CampoFormulario[]                // lo que pide el formulario, según la plantilla
   excluidos: Map<string, string>           // correo en minúsculas -> razón
   descartadas: FilaDestinatario[]          // correo inválido en el archivo
   // Devuelve un mensaje si no se pudo guardar.
@@ -19,7 +21,7 @@ type Props = {
 }
 
 export default function TablaDestinatarios({
-  filas, columnas, excluidos, descartadas, onGuardar, onEliminar, onEliminarDescartada,
+  filas, columnas, campos, excluidos, descartadas, onGuardar, onEliminar, onEliminarDescartada,
 }: Props) {
   const [busqueda, setBusqueda] = useState('')
   const [pagina, setPagina] = useState(0)
@@ -40,7 +42,7 @@ export default function TablaDestinatarios({
 
   function abrir(titulo: string, fila: FilaDestinatario | null, original: string | null, indiceDescartada: number | null = null) {
     const valores: Record<string, string> = {}
-    for (const c of columnas) valores[c] = String(fila?.datos[c] ?? '')
+    for (const c of campos) valores[c.clave] = String(fila?.datos[c.clave] ?? '')
     setErrorForm(null)
     setForm({ titulo, original, indiceDescartada, valores })
   }
@@ -127,11 +129,11 @@ export default function TablaDestinatarios({
         {form && (
           <div className="space-y-3">
             <div className="max-h-[60vh] space-y-3 overflow-auto pr-1">
-              {columnas.map((c, i) => (
-                <div key={c}>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">{c}{i === 0 && ' (correo)'}</label>
-                  <input value={form.valores[c]} className={inputCls}
-                    onChange={(e) => setForm({ ...form, valores: { ...form.valores, [c]: e.target.value } })} />
+              {campos.map((c) => (
+                <div key={c.clave}>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">{c.etiqueta}</label>
+                  <input value={form.valores[c.clave] ?? ''} className={inputCls}
+                    onChange={(e) => setForm({ ...form, valores: { ...form.valores, [c.clave]: e.target.value } })} />
                 </div>
               ))}
             </div>

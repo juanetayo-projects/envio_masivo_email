@@ -8,7 +8,7 @@ import type { ResultadoImport } from '../lib/excel'
 import { fusionarAsunto, prepararCuerpo, variablesFaltantes } from '../lib/merge'
 import { ejecutarEnvio, mensajeDeError } from '../lib/envioCampania'
 import type { Progreso } from '../lib/envioCampania'
-import { aplicarFiltro, dominioDe, eliminarFila, guardarFila, valoresDeColumna, verificarDominios } from '../lib/destinatarios'
+import { aplicarFiltro, camposFormulario, dominioDe, eliminarFila, guardarFila, valoresDeColumna, verificarDominios } from '../lib/destinatarios'
 import TablaDestinatarios from '../components/TablaDestinatarios'
 import type { Plantilla } from './Plantillas'
 
@@ -106,11 +106,21 @@ export default function NuevaCampania() {
     [filasFiltradas, excluidos],
   )
 
-  const faltantes = useMemo(() => {
-    if (!plantilla || !excel) return []
-    const texto = plantilla.html + ' ' + asunto
-    return variablesFaltantes(texto, excel.columnas)
-  }, [plantilla, asunto, excel])
+  // Lo que usa la plantilla, sin mirar el Excel: define el formulario de destinatarios.
+  const textoPlantilla = (plantilla?.html ?? '') + ' ' + asunto
+  const variablesSinColumna = useMemo(
+    () => (excel ? variablesFaltantes(textoPlantilla, excel.columnas) : []),
+    [textoPlantilla, excel],
+  )
+  const campos = useMemo(
+    () => (excel ? camposFormulario(textoPlantilla, excel.columnas) : []),
+    [textoPlantilla, excel],
+  )
+  // Una variable sin columna deja de avisar cuando todos sus destinatarios ya tienen valor.
+  const faltantes = useMemo(
+    () => variablesSinColumna.filter((v) => destinatarios.some((f) => !String(f.datos[v] ?? '').trim())),
+    [variablesSinColumna, destinatarios],
+  )
 
   async function onExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -163,7 +173,8 @@ export default function NuevaCampania() {
     indiceDescartada: number | null,
   ): Promise<string | null> {
     if (!excel) return 'No hay archivo cargado.'
-    const r = guardarFila(excel.filas, excel.columnas, original, valores)
+    const datosBase = indiceDescartada === null ? {} : excel.descartadas[indiceDescartada]?.datos
+    const r = guardarFila(excel.filas, excel.columnas, original, valores, datosBase)
     if ('error' in r) return r.error
     await revisarCorreo(r.fila.email)
     setExcel({
@@ -381,7 +392,8 @@ export default function NuevaCampania() {
 
                 <TablaDestinatarios
                   filas={filasFiltradas}
-                  columnas={excel.columnas}
+                  columnas={[...excel.columnas, ...variablesSinColumna]}
+                  campos={campos}
                   excluidos={excluidos}
                   descartadas={excel.descartadas}
                   onGuardar={guardarDestinatario}

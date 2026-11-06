@@ -1,5 +1,6 @@
 // Depuración de destinatarios al importar: dominios inexistentes y filtro por columna.
 import { emailValido } from './excel.ts'
+import { extraerVariables, normalizarClave } from './merge.ts'
 import type { FilaDestinatario } from './excel'
 
 export type EstadoDominio = 'valido' | 'inexistente' | 'desconocido'
@@ -70,12 +71,34 @@ export async function verificarDominios(
 
 const texto = (v: unknown) => String(v ?? '').trim()
 
+export type CampoFormulario = { clave: string; etiqueta: string }
+
+// Campos a pedir: el correo y las variables que usan la plantilla y el asunto.
+// La clave es la columna del Excel si existe ({{Medico}} -> "Médico"); si no, la variable.
+export function camposFormulario(textoPlantilla: string, columnas: string[]): CampoFormulario[] {
+  const columnaCorreo = columnas[0]
+  const reservadas = new Set(['email', 'enlace_baja', normalizarClave(columnaCorreo)])
+  const porClave = new Map(columnas.map((c) => [normalizarClave(c), c]))
+  const vistas = new Set<string>()
+  const campos: CampoFormulario[] = [{ clave: columnaCorreo, etiqueta: `${columnaCorreo} (correo)` }]
+  for (const variable of extraerVariables(textoPlantilla)) {
+    const k = normalizarClave(variable)
+    if (reservadas.has(k) || vistas.has(k)) continue
+    vistas.add(k)
+    const clave = porClave.get(k) ?? variable
+    campos.push({ clave, etiqueta: clave })
+  }
+  return campos
+}
+
 // Agrega (original = null) o edita una fila. La primera columna es el correo.
+// Solo cambia los campos recibidos: las demás columnas de la fila se conservan.
 export function guardarFila(
   filas: FilaDestinatario[],
   columnas: string[],
   original: string | null,
   valores: Record<string, string>,
+  datosBase: Record<string, unknown> = {},
 ): { filas: FilaDestinatario[]; fila: FilaDestinatario } | { error: string } {
   const email = texto(valores[columnas[0]])
   if (!emailValido(email)) return { error: 'Escribe un correo válido.' }
@@ -86,8 +109,9 @@ export function guardarFila(
     return { error: 'Ese correo ya está en la lista.' }
   }
 
-  const datos: Record<string, unknown> = {}
-  for (const c of columnas) datos[c] = texto(valores[c])
+  const actual = anterior === null ? undefined : filas.find((f) => f.email.toLowerCase() === anterior)
+  const datos: Record<string, unknown> = { ...(actual?.datos ?? datosBase) }
+  for (const [clave, valor] of Object.entries(valores)) datos[clave] = texto(valor)
   datos[columnas[0]] = email
   datos['email'] = email   // alias siempre disponible
   const fila = { email, datos }
