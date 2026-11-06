@@ -29,16 +29,16 @@ export default function MapaCalor({ celdas, unidad }: { celdas: CeldaCalor[]; un
     setActiva({ dia, hora, n, x: Math.min(celda.left - caja.left, caja.width - 170), y: celda.bottom - caja.top + 6 })
   }
 
-  if (max === 0) return <p className="py-8 text-center text-sm text-slate-400">Sin {unidad} en este periodo.</p>
+  if (max === 0) return <p className="py-8 text-center text-sm text-panel-suave">Sin {unidad} en este periodo.</p>
 
   return (
     <div ref={contenedor} className="relative overflow-x-auto">
       <div className="grid min-w-[620px] items-center gap-[3px]" style={{ gridTemplateColumns: '34px repeat(24, 1fr)' }}>
         <div />
-        {HORAS.map((h) => <div key={h} className="text-center text-[10px] text-slate-400">{h % 2 === 0 ? h : ''}</div>)}
+        {HORAS.map((h) => <div key={h} className="text-center text-[10px] text-panel-suave">{h % 2 === 0 ? h : ''}</div>)}
         {DIAS.map((d, i) => (
           <div key={d} className="contents">
-            <div className="pr-1 text-right text-[11px] text-slate-500">{d}</div>
+            <div className="pr-1 text-right text-[11px] text-panel-suave">{d}</div>
             {HORAS.map((h) => {
               const n = matriz[i][h]
               const nivel = n > 0 ? Math.max(1, Math.round((n / max) * (ESCALA.length - 1))) : 0
@@ -47,7 +47,7 @@ export default function MapaCalor({ celdas, unidad }: { celdas: CeldaCalor[]; un
                   onMouseEnter={(e) => mostrar(i, h, n, e.currentTarget)} onMouseLeave={() => setActiva(null)}
                   onFocus={(e) => mostrar(i, h, n, e.currentTarget)} onBlur={() => setActiva(null)}
                   className="flex h-6 items-center justify-center rounded-[3px] text-[10px] font-medium"
-                  style={{ background: n > 0 ? ESCALA[nivel] : '#F1F5F9', color: nivel >= 4 ? '#fff' : '#0C447C' }}>
+                  style={{ background: n > 0 ? ESCALA[nivel] : 'rgba(255,255,255,0.65)', color: nivel >= 4 ? '#fff' : '#0C447C' }}>
                   {n > 0 && max <= 40 ? n : ''}
                 </div>
               )
@@ -56,7 +56,7 @@ export default function MapaCalor({ celdas, unidad }: { celdas: CeldaCalor[]; un
         ))}
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-2 text-[11px] text-slate-500">
+      <div className="mt-3 flex items-center justify-end gap-2 text-[11px] text-panel-suave">
         <span>Menos</span>
         {ESCALA.map((c) => <span key={c} className="h-3 w-4 rounded-[2px]" style={{ background: c }} />)}
         <span>Más ({max})</span>

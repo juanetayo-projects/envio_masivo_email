@@ -3,6 +3,13 @@
 @theme {
   --color-azul: #0D2D6B;
   --color-azul2: #16468E;
+
+  /* Tarjetas de paneles: cambiar estos valores ajusta todo el Dashboard.
+     El tono está validado contra las series de las gráficas. */
+  --color-panel: #E3EBF6;
+  --color-panel-borde: #C9D6E8;
+  --color-panel-texto: #0F172A;
+  --color-panel-suave: #475569;
 }
 
 :root {

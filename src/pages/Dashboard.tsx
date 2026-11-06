@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '../lib/supabase'
-import { PageHeader, MetricCard, Card, FilterBar, Boton, TableHead, filaZebra } from '../components/ui'
+import { PageHeader, MetricCard, Panel, Segmentado, Boton, TableHead, filaZebra } from '../components/ui'
 import MapaCalor from '../components/MapaCalor'
+import { RANGOS, hoyEnColombia, rangoDesde } from '../lib/rangos'
+import type { ClaveRango } from '../lib/rangos'
 
 type PorCampania = { id: string; nombre: string; enviados: number; entregados: number; abiertos: number; clics: number; rebotes: number }
 type Metricas = {
@@ -33,7 +35,10 @@ const tooltipOscuro = {
 }
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const DIAS_PARA_AGRUPAR_POR_MES = 62
-const campo = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#16468E]'
+const campo = 'rounded-lg border border-panel-borde bg-white px-3 py-1.5 text-sm outline-none focus:border-[#16468E]'
+const etiquetaCampo = 'text-xs font-medium text-panel-suave'
+const ejeTick = { fontSize: 11, fill: '#475569' }
+const ALTO_GRAFICA = 210
 
 const pct = (n: number, base: number) => (base ? `${Math.round((n / base) * 100)}%` : '—')
 
@@ -64,7 +69,7 @@ function agruparSerie(porDia: Metricas['por_dia']) {
 }
 
 function Vacio({ children }: { children: React.ReactNode }) {
-  return <p className="py-8 text-center text-sm text-slate-400">{children}</p>
+  return <p className="py-8 text-center text-sm text-panel-suave">{children}</p>
 }
 
 export default function Dashboard() {
@@ -120,48 +125,64 @@ export default function Dashboard() {
 
   const resultados = m ? [
     { estado: 'Entregados', valor: m.entregados, color: VERDE },
-    { estado: 'Sin confirmar', valor: Math.max(0, m.enviados - m.entregados - m.rebotes), color: '#94A3B8' },
-    { estado: 'Rebotes', valor: m.rebotes, color: '#D97706' },
+    { estado: 'Sin confirmar', valor: Math.max(0, m.enviados - m.entregados - m.rebotes), color: '#64748B' },
+    { estado: 'Rebotes', valor: m.rebotes, color: '#B45309' },
     { estado: 'Fallidos', valor: m.fallidos, color: '#DC2626' },
-    { estado: 'Omitidos', valor: m.omitidos, color: '#475569' },
-    { estado: 'Pendientes', valor: m.pendientes, color: '#64748B' },
+    { estado: 'Omitidos', valor: m.omitidos, color: '#334155' },
+    { estado: 'Pendientes', valor: m.pendientes, color: '#475569' },
   ].filter((r) => r.valor > 0) : []
 
   const valor = (n?: number) => (m ? n ?? 0 : '…')
+  const tasa = (n: number) => (enviados ? Math.round((n / enviados) * 100) : 0)
+
+  const hoy = hoyEnColombia()
+  const rangoActivo = RANGOS.find((r) => {
+    const x = rangoDesde(r.clave, hoy)
+    return x.desde === desde && x.hasta === hasta
+  })?.clave ?? null
+  function elegirRango(clave: ClaveRango) {
+    const x = rangoDesde(clave, hoy)
+    setDesde(x.desde)
+    setHasta(x.hasta)
+  }
 
   return (
     <div>
-      <PageHeader titulo="Dashboard" />
+      <PageHeader titulo="Dashboard" acciones={
+        <Segmentado etiqueta="Rango de fechas" opciones={RANGOS} valor={rangoActivo} onChange={elegirRango} />
+      } />
 
-      <FilterBar>
-        <label className="text-xs font-medium text-slate-600">Desde
-          <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={`${campo} mt-1 block`} />
-        </label>
-        <label className="text-xs font-medium text-slate-600">Hasta
-          <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={`${campo} mt-1 block`} />
-        </label>
-        <label className="text-xs font-medium text-slate-600">Remitente
-          <select value={remitente} className={`${campo} mt-1 block max-w-[240px]`} onChange={(e) => {
-            setRemitente(e.target.value)
-            setCampania('')   // la campaña elegida podría no ser de ese remitente
-          }}>
-            <option value="">Todos</option>
-            {remitentes.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </label>
-        <label className="text-xs font-medium text-slate-600">Campaña
-          <select value={campania} onChange={(e) => setCampania(e.target.value)} className={`${campo} mt-1 block max-w-[260px]`}>
-            <option value="">Todas</option>
-            {campaniasVisibles.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-          </select>
-        </label>
-        {hayFiltros && (
-          <Boton variante="secundario" onClick={() => { setDesde(''); setHasta(''); setCampania(''); setRemitente('') }}>
-            Limpiar filtros
-          </Boton>
-        )}
-        {cargando && <span className="pb-2 text-xs text-slate-400">Actualizando…</span>}
-      </FilterBar>
+      <Panel className="mb-4" cuerpoClassName="!pt-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className={etiquetaCampo}>Desde
+            <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={`${campo} mt-1 block`} />
+          </label>
+          <label className={etiquetaCampo}>Hasta
+            <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={`${campo} mt-1 block`} />
+          </label>
+          <label className={etiquetaCampo}>Remitente
+            <select value={remitente} className={`${campo} mt-1 block max-w-[240px]`} onChange={(e) => {
+              setRemitente(e.target.value)
+              setCampania('')   // la campaña elegida podría no ser de ese remitente
+            }}>
+              <option value="">Todos</option>
+              {remitentes.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </label>
+          <label className={etiquetaCampo}>Campaña
+            <select value={campania} onChange={(e) => setCampania(e.target.value)} className={`${campo} mt-1 block max-w-[260px]`}>
+              <option value="">Todas</option>
+              {campaniasVisibles.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+            </select>
+          </label>
+          {hayFiltros && (
+            <Boton variante="secundario" onClick={() => { setDesde(''); setHasta(''); setCampania(''); setRemitente('') }}>
+              Limpiar filtros
+            </Boton>
+          )}
+          {cargando && <span className="pb-2 text-xs text-panel-suave">Actualizando…</span>}
+        </div>
+      </Panel>
 
       {error && <p className="mb-3 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
       {rangoInvalido && <p className="mb-3 rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-700">La fecha inicial es posterior a la final.</p>}
@@ -169,10 +190,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard titulo="Campañas enviadas" valor={valor(m?.campanias)} />
         <MetricCard titulo="Correos enviados" valor={valor(m?.enviados)} sub={m ? `de ${m.destinatarios} destinatarios` : ''} />
-        <MetricCard titulo="Tasa de entrega" valor={m ? pct(m.entregados, enviados) : '…'} sub={m ? `${m.entregados} entregados` : ''} />
-        <MetricCard titulo="Tasa de apertura" valor={m ? pct(m.abiertos, enviados) : '…'} sub={m ? `${m.abiertos} aperturas` : ''} />
-        <MetricCard titulo="Tasa de clics" valor={m ? pct(m.clics, enviados) : '…'} sub={m ? `${m.clics} clics` : ''} />
-        <MetricCard titulo="Tasa de rebote" valor={m ? pct(m.rebotes, enviados) : '…'} sub={m ? `${m.rebotes} rebotes` : ''} />
+        <MetricCard titulo="Tasa de entrega" valor={m ? pct(m.entregados, enviados) : '…'} sub={m ? `${m.entregados} entregados` : ''} porcentaje={m ? tasa(m.entregados) : undefined} />
+        <MetricCard titulo="Tasa de apertura" valor={m ? pct(m.abiertos, enviados) : '…'} sub={m ? `${m.abiertos} aperturas` : ''} porcentaje={m ? tasa(m.abiertos) : undefined} />
+        <MetricCard titulo="Tasa de clics" valor={m ? pct(m.clics, enviados) : '…'} sub={m ? `${m.clics} clics` : ''} porcentaje={m ? tasa(m.clics) : undefined} />
+        <MetricCard titulo="Tasa de rebote" valor={m ? pct(m.rebotes, enviados) : '…'} sub={m ? `${m.rebotes} rebotes` : ''} porcentaje={m ? tasa(m.rebotes) : undefined} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
@@ -182,9 +203,9 @@ export default function Dashboard() {
           { t: 'Pendientes', v: m?.pendientes },
           { t: campania || remitente ? 'Bajas (todas las campañas)' : 'Bajas', v: m?.bajas },
         ].map((x) => (
-          <div key={x.t} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <span className="text-slate-500">{x.t}</span>
-            <span className="text-lg font-semibold text-slate-800">{valor(x.v)}</span>
+          <div key={x.t} className="flex items-center justify-between gap-3 rounded-xl border border-panel-borde bg-panel px-4 py-2.5 shadow-sm">
+            <span className="text-panel-suave">{x.t}</span>
+            <span className="text-lg font-semibold text-panel-texto">{valor(x.v)}</span>
           </div>
         ))}
       </div>
@@ -195,123 +216,111 @@ export default function Dashboard() {
         </p>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <h3 className="mb-3 text-sm font-medium text-slate-600">Embudo de la campaña</h3>
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Panel titulo="Embudo" descripcion="Porcentaje sobre lo enviado">
           {enviados === 0 ? <Vacio>Sin envíos en este periodo.</Vacio> : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={embudo} layout="vertical" margin={{ right: 90, left: 8 }}>
+            <ResponsiveContainer width="100%" height={ALTO_GRAFICA}>
+              <BarChart data={embudo} layout="vertical" margin={{ top: 0, right: 66, bottom: 0, left: 0 }}>
                 <XAxis type="number" hide allowDecimals={false} />
-                <YAxis type="category" dataKey="etapa" width={80} tick={{ fontSize: 12, fill: '#475569' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="etapa" width={68} tick={ejeTick} axisLine={false} tickLine={false} />
                 <Tooltip {...tooltipOscuro} formatter={(v) => [String(v), 'Correos']} />
-                <Bar dataKey="valor" fill={AZUL} barSize={24} radius={[0, 4, 4, 0]} isAnimationActive={false}>
-                  <LabelList position="right" fontSize={12} fill="#334155"
+                <Bar dataKey="valor" fill={AZUL} barSize={18} radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                  <LabelList position="right"
                     content={(p) => {
                       const { x, y, width, height, index } = p as { x: number; y: number; width: number; height: number; index: number }
                       const f = embudo[index]
-                      return <text x={x + width + 8} y={y + height / 2 + 4} fontSize={12} fill="#334155">{f.valor} · {f.nota}</text>
+                      return <text x={x + width + 6} y={y + height / 2 + 4} fontSize={11} fill="#0F172A">{f.valor} · {f.nota}</text>
                     }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
-        </Card>
+        </Panel>
 
-        <Card>
-          <h3 className="mb-3 text-sm font-medium text-slate-600">Resultado de los envíos</h3>
+        <Panel titulo="Resultado de los envíos" descripcion="Estado actual de cada destinatario">
           {resultados.length === 0 ? <Vacio>Sin envíos en este periodo.</Vacio> : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={resultados} layout="vertical" margin={{ right: 40, left: 8 }}>
+            <ResponsiveContainer width="100%" height={ALTO_GRAFICA}>
+              <BarChart data={resultados} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 0 }}>
                 <XAxis type="number" hide allowDecimals={false} />
-                <YAxis type="category" dataKey="estado" width={96} tick={{ fontSize: 12, fill: '#475569' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="estado" width={104} tick={ejeTick} axisLine={false} tickLine={false} />
                 <Tooltip {...tooltipOscuro} formatter={(v) => [String(v), 'Correos']} />
-                <Bar dataKey="valor" barSize={20} radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                <Bar dataKey="valor" barSize={16} radius={[0, 4, 4, 0]} isAnimationActive={false}>
                   {resultados.map((r) => <Cell key={r.estado} fill={r.color} />)}
-                  <LabelList dataKey="valor" position="right" fontSize={12} fill="#334155" />
+                  <LabelList dataKey="valor" position="right" fontSize={11} fill="#0F172A" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
-        </Card>
+        </Panel>
+
+        <Panel titulo={serie.titulo} descripcion="Enviados y entregados">
+          {serie.datos.length === 0 ? <Vacio>Sin envíos en este periodo.</Vacio> : (
+            <ResponsiveContainer width="100%" height={ALTO_GRAFICA}>
+              <BarChart data={serie.datos} barGap={2} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#C9D6E8" vertical={false} />
+                <XAxis dataKey="etiqueta" tick={ejeTick} axisLine={false} tickLine={false} minTickGap={12} />
+                <YAxis allowDecimals={false} tick={ejeTick} width={30} axisLine={false} tickLine={false} />
+                <Tooltip {...tooltipOscuro} />
+                <Legend iconSize={9} wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="enviados" name="Enviados" fill={AZUL} maxBarSize={22} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="entregados" name="Entregados" fill={VERDE} maxBarSize={22} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
       </div>
 
-      <Card className="mt-6">
-        <h3 className="mb-3 text-sm font-medium text-slate-600">{serie.titulo}</h3>
-        {serie.datos.length === 0 ? <Vacio>Sin envíos en este periodo.</Vacio> : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={serie.datos} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-              <XAxis dataKey="etiqueta" tick={{ fontSize: 12, fill: '#475569' }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#475569' }} width={36} />
-              <Tooltip {...tooltipOscuro} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="enviados" name="Enviados" fill={AZUL} maxBarSize={36} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              <Bar dataKey="entregados" name="Entregados" fill={VERDE} maxBarSize={36} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </Card>
-
-      <Card className="mt-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-slate-600">Actividad por día y hora (hora de Colombia)</h3>
-          <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
-            {METRICAS_CALOR.map((x) => (
-              <button key={x.clave} type="button" onClick={() => setMetricaCalor(x.clave)}
-                aria-pressed={metricaCalor === x.clave}
-                className={`rounded-md px-3 py-1 text-xs font-medium ${metricaCalor === x.clave ? 'bg-[#0D2D6B] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                {x.etiqueta}
-              </button>
-            ))}
-          </div>
-        </div>
+      <Panel className="mt-4" titulo="Actividad por día y hora" descripcion="Hora de Colombia"
+        accion={<Segmentado etiqueta="Métrica del mapa de calor" opciones={METRICAS_CALOR} valor={metricaCalor} onChange={setMetricaCalor} />}>
         <MapaCalor celdas={celdasCalor} unidad={unidadCalor} />
-      </Card>
+      </Panel>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        <Card className="overflow-x-auto p-0 xl:col-span-2">
-          <h3 className="p-4 text-sm font-medium text-slate-600">Últimas campañas del periodo</h3>
-          <table className="w-full text-sm">
-            <TableHead>
-              <th>Campaña</th><th className="text-right">Enviados</th><th className="text-right">Entrega</th>
-              <th className="text-right">Apertura</th><th className="text-right">Clics</th><th className="text-right">Rebote</th>
-            </TableHead>
-            <tbody>
-              {(m?.por_campania ?? []).map((c, i) => (
-                <tr key={c.id} className={`${filaZebra(i)} cursor-pointer`} onClick={() => navigate(`/campanias/${c.id}/informe`)}>
-                  <td className="px-4 py-2 font-medium text-[#16468E]">{c.nombre}</td>
-                  <td className="px-4 py-2 text-right">{c.enviados}</td>
-                  <td className="px-4 py-2 text-right">{pct(c.entregados, c.enviados)}</td>
-                  <td className="px-4 py-2 text-right">{pct(c.abiertos, c.enviados)}</td>
-                  <td className="px-4 py-2 text-right">{pct(c.clics, c.enviados)}</td>
-                  <td className="px-4 py-2 text-right">{pct(c.rebotes, c.enviados)}</td>
-                </tr>
-              ))}
-              {m && m.por_campania.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Sin campañas en este periodo.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+        <Panel className="xl:col-span-2" titulo="Últimas campañas del periodo" descripcion="Abre una fila para ver su informe">
+          <div className="overflow-x-auto rounded-lg border border-panel-borde bg-white">
+            <table className="w-full text-sm">
+              <TableHead>
+                <th>Campaña</th><th className="text-right">Enviados</th><th className="text-right">Entrega</th>
+                <th className="text-right">Apertura</th><th className="text-right">Clics</th><th className="text-right">Rebote</th>
+              </TableHead>
+              <tbody>
+                {(m?.por_campania ?? []).map((c, i) => (
+                  <tr key={c.id} className={`${filaZebra(i)} cursor-pointer`} onClick={() => navigate(`/campanias/${c.id}/informe`)}>
+                    <td className="px-4 py-2 font-medium text-[#16468E]">{c.nombre}</td>
+                    <td className="px-4 py-2 text-right">{c.enviados}</td>
+                    <td className="px-4 py-2 text-right">{pct(c.entregados, c.enviados)}</td>
+                    <td className="px-4 py-2 text-right">{pct(c.abiertos, c.enviados)}</td>
+                    <td className="px-4 py-2 text-right">{pct(c.clics, c.enviados)}</td>
+                    <td className="px-4 py-2 text-right">{pct(c.rebotes, c.enviados)}</td>
+                  </tr>
+                ))}
+                {m && m.por_campania.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">Sin campañas en este periodo.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
 
-        <Card className="overflow-x-auto p-0">
-          <h3 className="p-4 text-sm font-medium text-slate-600">Principales dominios</h3>
-          <table className="w-full text-sm">
-            <TableHead><th>Dominio</th><th className="text-right">Enviados</th><th className="text-right">Rebote</th></TableHead>
-            <tbody>
-              {(m?.por_dominio ?? []).map((d, i) => (
-                <tr key={d.dominio} className={filaZebra(i)}>
-                  <td className="px-4 py-2 break-all">{d.dominio}</td>
-                  <td className="px-4 py-2 text-right">{d.enviados}</td>
-                  <td className="px-4 py-2 text-right">{pct(d.rebotes, d.enviados)}</td>
-                </tr>
-              ))}
-              {m && m.por_dominio.length === 0 && (
-                <tr><td colSpan={3} className="px-4 py-6 text-center text-slate-400">Sin datos.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
+        <Panel titulo="Principales dominios" descripcion="Por correos enviados">
+          <div className="overflow-x-auto rounded-lg border border-panel-borde bg-white">
+            <table className="w-full text-sm">
+              <TableHead><th>Dominio</th><th className="text-right">Enviados</th><th className="text-right">Rebote</th></TableHead>
+              <tbody>
+                {(m?.por_dominio ?? []).map((d, i) => (
+                  <tr key={d.dominio} className={filaZebra(i)}>
+                    <td className="break-all px-4 py-2">{d.dominio}</td>
+                    <td className="px-4 py-2 text-right">{d.enviados}</td>
+                    <td className="px-4 py-2 text-right">{pct(d.rebotes, d.enviados)}</td>
+                  </tr>
+                ))}
+                {m && m.por_dominio.length === 0 && (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-slate-500">Sin datos.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       </div>
     </div>
   )

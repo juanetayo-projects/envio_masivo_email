@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 
 // --- Card de métrica con degradado institucional ---
 export function MetricCard({
-  titulo, valor, icono, sub,
-}: { titulo: string; valor: ReactNode; icono?: ReactNode; sub?: string }) {
+  titulo, valor, icono, sub, porcentaje,
+}: { titulo: string; valor: ReactNode; icono?: ReactNode; sub?: string; porcentaje?: number }) {
   return (
     <div className="rounded-2xl p-5 text-white shadow-md
                     bg-gradient-to-br from-[#0D2D6B] to-[#16468E]">
@@ -13,6 +13,11 @@ export function MetricCard({
       </div>
       <div className="mt-2 text-3xl font-bold">{valor}</div>
       {sub && <div className="mt-1 text-xs opacity-75">{sub}</div>}
+      {porcentaje !== undefined && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
+          <div className="h-full rounded-full bg-white" style={{ width: `${Math.min(100, porcentaje)}%` }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -78,6 +83,51 @@ export function Card({ children, className = '' }:
   return (
     <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
       {children}
+    </div>
+  )
+}
+
+// --- Panel: tarjeta con encabezado, título, descripción y acción ---
+export function Panel({ titulo, descripcion, accion, className = '', cuerpoClassName = '', children }: {
+  titulo?: ReactNode
+  descripcion?: ReactNode
+  accion?: ReactNode
+  className?: string
+  cuerpoClassName?: string
+  children: ReactNode
+}) {
+  return (
+    <section className={`flex min-w-0 flex-col rounded-2xl border border-panel-borde bg-panel text-panel-texto shadow-sm ${className}`}>
+      {(titulo || accion) && (
+        <header className="flex flex-wrap items-start justify-between gap-2 px-5 pt-4">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold tracking-tight">{titulo}</h3>
+            {descripcion && <p className="mt-0.5 text-xs text-panel-suave">{descripcion}</p>}
+          </div>
+          {accion}
+        </header>
+      )}
+      <div className={`min-w-0 flex-1 px-5 pb-4 pt-3 ${cuerpoClassName}`}>{children}</div>
+    </section>
+  )
+}
+
+// --- Selector segmentado: rangos, métricas ---
+export function Segmentado<T extends string>({ opciones, valor, onChange, etiqueta }: {
+  opciones: { clave: T; etiqueta: string }[]
+  valor: T | null
+  onChange: (clave: T) => void
+  etiqueta: string
+}) {
+  return (
+    <div role="group" aria-label={etiqueta} className="inline-flex rounded-lg border border-panel-borde bg-white/70 p-0.5">
+      {opciones.map((o) => (
+        <button key={o.clave} type="button" aria-pressed={valor === o.clave} onClick={() => onChange(o.clave)}
+          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+            valor === o.clave ? 'bg-[#0D2D6B] text-white shadow-sm' : 'text-panel-suave hover:bg-white'}`}>
+          {o.etiqueta}
+        </button>
+      ))}
     </div>
   )
 }
